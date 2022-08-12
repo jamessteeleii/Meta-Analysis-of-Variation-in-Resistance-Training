@@ -24,6 +24,7 @@ options(knitr.kable.NA = '')
 ```{r, message=FALSE, warning=FALSE, echo=FALSE, cache=TRUE}
 # Load relevant packages
 library(here)
+library(kableExtra)
 ```
 ```{r, message=FALSE,warning=FALSE,echo=FALSE}
 # load the raw data to the environment
@@ -36,16 +37,16 @@ load(here("models/mods_SMD_logCVR"))
 
 ```
 # Introduction
-Though the quantitative synthesis of results across studies has existed since the 17th century [@plackett_studies_1958], the modern day term "meta-analysis" as it is now referred to was coined by Gene Glass in [-@glass_primary_1976]. Since that time use of meta-analysis as a tool for the synthesis of research in sport and exercise science has increased considerably [@hagger_meta-analysis_2022]. One area of sport and exercise science which has comprised a considerable proportion of that growth appears to have been in the study of resistance training (RT; figure \@ref(fig:trend-plot)).
+Though the quantitative synthesis of results across studies has existed since the 17th century [@plackett_studies_1958], the modern day term "meta-analysis" as it is now referred to was coined by Gene Glass in [-@glass_primary_1976]. Since that time use of meta-analysis as a tool for the synthesis of research in sport and exercise science has increased considerably [@hagger_meta-analysis_2022]. One area of sport and exercise science which has comprised a considerable proportion of that growth appears to have been in the study of resistance training (RT; figure \@ref(fig:trend-plot)). Given such growth, throughout the paper we use RT studies as a hopefully familiar example for sport and exercise science researchers.
 ```{r trend-plot, echo=FALSE,fig.height=4, fig.width=6, fig.cap="Trends in meta-analyses published in sport and exercise science since 1976"}
 
 load(here("plots/trends_plot"))
 trends_plot
 
 ```
-As with many other fields [@nakagawa_meta-analysis_2015; @usui_meta-analysis_2021; @mills_detecting_2021] likely the most familiar aim with the use of meta-analysis, and indeed primary empirical research too, in sport and exercise science is to make comparisons between the means of measurements taken across different categorical grouping variables; for example, the comparison of an intervention group and a control group, or the comparison of one intervention group to another. Indeed, a recent umbrella review [@bernardez-vazquez_resistance_2022] of meta-analyses in RT identified 14 studies examining the manipulation of RT intervention variables on hypertrophy outcomes all of which focused on the comparison of mean changes between different intervention groups. 
+As with many other fields [@nakagawa_meta-analysis_2015; @usui_meta-analysis_2021; @mills_detecting_2021] likely the most familiar aim with the use of meta-analysis, and indeed primary empirical research too, in sport and exercise science is to make comparisons between the means of measurements taken across different categorical grouping variables; for example, the comparison of an intervention group and a control group, the comparison of one intervention group to another, or comparison between non-manipulated categories such as biological sex. Indeed, a recent umbrella review [@bernardez-vazquez_resistance_2022] of meta-analyses in RT identified 14 studies examining the manipulation of RT intervention variables (i.e., the comparison of one intervention to another whereby a variable in the intervention was manipulated) on hypertrophy outcomes all of which focused on the comparison of mean changes between different intervention groups. 
  
-Most commonly a magnitude based[^1] effect size statistic [@caldwell_case_2020], the standardised mean difference (SMD), is used to compare means between groups or conditions. This is usually Cohen's *d* [@cohen_statistical_1988], or it's bias-corrected metric referred to as Hedges' *g* [@hedges_statistical_2014; @borenstein_introduction_2021; @nakagawa_effect_2007]. The SMD[^2], and its sampling variance, $s^2_{SMD}$ are given by:
+Most commonly a magnitude based[^1] effect size statistic [@caldwell_case_2020], the standardised mean difference (SMD), is used to compare means between groups or conditions. This is usually Cohen's *d* [@cohen_statistical_1988], or it's bias-corrected metric referred to as Hedges' *g* [@hedges_statistical_2014; @borenstein_introduction_2021; @nakagawa_effect_2007] [^2]. The SMD, and its sampling variance, $s^2_{SMD}$ are given by:
 
 \begin{equation}
 SMD=\frac{\overline{x}_E - \overline{x}_C}{s_{pooled}}J
@@ -53,12 +54,12 @@ SMD=\frac{\overline{x}_E - \overline{x}_C}{s_{pooled}}J
 \end{equation}
 
 \begin{equation}
-J=1-\frac{3}{4(n_{C}+n_{E})-2)-1}J
+J=1-\frac{3}{4(n_{C}+n_{E})-2)-1}
 (\#eq:biasJ-eq)
 \end{equation}
 
 \begin{equation}
-s_{pooled}=\sqrt{\frac{(n_{C}-1)s^2_{C}(n_{E}-1)s^2_{E}+}{n_{C}+n_{E}-2}}
+s_{pooled}=\sqrt{\frac{(n_{C}-1)s^2_{C}+(n_{E}-1)s^2_{E}}{n_{C}+n_{E}-2}}
 (\#eq:s-pooled-eq)
 \end{equation}
 
@@ -69,7 +70,7 @@ s^2_{SMD}=\frac{n_{C}+n_{E}}{n_{C}n_{E}}+\frac{SMD^2}{2(n_{E}+n_{C})}
 
 where $\overline{x}_C$ and $\overline{x}_E$ are the sample means of the control group (C) and experimental (E) or intervention group respectively, $s_C$ and $s_E$ are the standard deviations of the two groups, $n_C$ and $n_E$ are the sample sizes of the two groups, and $J$ is a bias correction for small sample sizes.
 
-The natural logarithm of the ratio of two means ($\textrm{ln}RR$) is also another effect size statistic that can be used [@curtis_meta-analysis_1998; @hedges_meta-analysis_1999; @lajeunesse_bias_2015]. The lnRR, and its sampling variance, $s^2_{lnRR}$ are given by:
+The natural logarithm of the ratio of two means ($\textrm{ln}RR$) is also another effect size statistic that can be used [@curtis_meta-analysis_1998; @hedges_meta-analysis_1999; @lajeunesse_bias_2015]. The lnRR, and its sampling variance, $s^2_{\textrm{ln}RR}$ are given by:
 
 \begin{equation}
 \textrm{ln}RR=\textrm{ln}\frac{\overline{x}_E}{\overline{x}_C}
@@ -81,11 +82,11 @@ s^2_{\textrm{ln}RR}=\frac{s^2_{C}}{n_{C}\overline{x}^2_{C}}+\frac{s^2_{E}}{n_{E}
 (\#eq:lnRRvar-eq)
 \end{equation}
 
-In comparison to the SMD, which due to its calculation is affected not only by the difference in means of the two groups C and E, but is also affected by the standard deviations of both groups due to the standardisation of the effect size by $s_{pooled}$. The $\textrm{ln}RR$ is uninfluenced by the standard deviations in either groups (see equation \@ref(eq:lnRR-eq)), and only affects the sampling variance (see equation \@ref(eq:lnRRvar-eq)). Despite this, use of $\textrm{ln}RR$ has been limited in previous meta-analyses in sport and exercise science [@deb_quantifying_2018] and to our knowledge only one meta-analysis in RT has used this effect size (Swinton et al., in press).
+Due to its calculation the SMD is affected not only by the difference in means of the two groups, but is also affected by the standard deviations of both groups due to the standardisation of the effect size by $s_{pooled}$. Contrastingly, the $\textrm{ln}RR$ is uninfluenced by the standard deviations in either groups (see equation \@ref(eq:lnRR-eq)), which only affects the sampling variance (see equation \@ref(eq:lnRRvar-eq)). Despite this, use of $\textrm{ln}RR$ has been limited in previous meta-analyses in sport and exercise science [@deb_quantifying_2018] and to our knowledge only one meta-analysis in RT has used this effect size (Swinton et al., in press).
 
-Though the focus in sport and exercise science among other fields has been in estimating the average effects of interventions for both primary research and synthesis through meta-analysis, the field has been aware for some time that responses to interventions do vary potentially on a subgroup or even individual basis. The increased interested in *precision* or *personalised* approaches to exercise prescription has resulted in a number of opinion and methodological review articles discussing statistical approaches to understanding interindividual response heterogeneity to exercise interventions [@hecksteden_individual_2015; @atkinson_true_2015; @atkinson_issues_2019; @ross_precision_2019; @swinton_statistical_2018; @hopkins_individual_2015; @kelley_precision_2022; @hrubeniuk_directions_2022; @pickering_non-responders_2019]. However, despite the availability of approaches to compare variances between groups, in sports and exercise science this is rarely explored in primary research [@bonafiglia_interindividual_2022] and, though there has been increased interest in recent years, few meta-analyses in sport and exercise include both comparisons of means and variances or explicitly aim to investigate the latter [@kelley_are_2022; @kelley_are_2020; @esteves_individual_2021; @bonafiglia_interindividual_2022; @steele_slow_2021; @fisher_role_2022]. Examination of interindividual heterogeneity in response to interventions presents considerable value to researchers and practitioners in sport and exercise science; interventions with low interindividual variation are likely to be widely generalisable, whilst an intervention with high interindividual variation is likely to have effects that are either subgroup or individual specific. The former kind of intervention might be widely applicable across individuals, whilst the latter kind of intervention requires specific research to tease apart subgroup- or participant-by-intervention interactions to enable successful practical application.
+Though the focus in sport and exercise science among other fields has been in estimating the average effects of interventions for both primary research and synthesis through meta-analysis, the field has been aware for some time that responses to certain interventions do vary potentially on a subgroup or even individual basis. The increased interested in *precision* or *personalised* approaches to exercise prescription has resulted in a number of opinion and methodological review articles discussing statistical approaches to understanding interindividual response heterogeneity to exercise interventions [@hecksteden_individual_2015; @atkinson_true_2015; @atkinson_issues_2019; @ross_precision_2019; @swinton_statistical_2018; @hopkins_individual_2015; @kelley_precision_2022; @hrubeniuk_directions_2022; @pickering_non-responders_2019]. However, despite the availability of approaches to compare variances between groups, in sports and exercise science this is rarely explored in primary research [@bonafiglia_interindividual_2022] and, though there has been increased interest in recent years, few meta-analyses in sport and exercise include both comparisons of means and variances or explicitly aim to investigate the latter [@kelley_are_2022; @kelley_are_2020; @esteves_individual_2021; @bonafiglia_interindividual_2022; @steele_slow_2021; @fisher_role_2022]. Examination of interindividual heterogeneity in response to interventions presents considerable value to researchers and practitioners in sport and exercise science; interventions with low interindividual variation are likely to be widely generalisable, whilst an intervention with high interindividual variation is likely to have effects that are either subgroup or individual specific. The former kind of intervention might be widely applicable across individuals, whilst the latter kind of intervention requires specific research to tease apart subgroup- or participant-by-intervention interactions to enable successful practical application.
 
-Comparison of heterogeneity in responses such as post-scores or change scores to longitudinal interventions are however not the only possible use of statistical methods for comparing variances. For example, in other fields such as ecology there have been calls to shift focus onto the exploration of dispersion of traits between groups in non-experimental or interventional designs [@nakagawa_mean_2012]. Some recent examples from sport and exercise science, and RT in particular, include primary research exploring between participant acute response variation for the purposes of identifying methods[^3] to reduce RT stimulus heterogeneity [@exner_does_2022] as well as meta-analysis exploring between participant heterogeneity of accuracy in predicting proximity to task failure during RT [@halperin_accuracy_2022].
+Comparison of heterogeneity in responses such as post-scores or change scores to interventions are however not the only possible use of statistical methods for comparing variances. For example, in other fields such as ecology there have been calls to shift focus onto the exploration of dispersion of traits between groups in non-experimental or interventional designs [@nakagawa_mean_2012]. Some recent examples from sport and exercise science, and RT in particular, include primary research exploring between participant acute response variation for the purposes of identifying methods[^3] to reduce RT stimulus heterogeneity [@exner_does_2022] as well as meta-analysis exploring between participant heterogeneity of accuracy in predicting proximity to task failure during RT [@halperin_accuracy_2022].
 
 Given the value of embracing and exploring variation alongside mean effects in sport and exercise science, yet the lack of application in research synthesis by way of meta-analysis, we present and discuss effect size approaches and models for meta-analysis of variation. We provide examples of the approaches presented using data from RT studies included in a recent meta-analysis published in the *Journal of Sport Sciences* [@polito_moderators_2021].
 
@@ -93,7 +94,7 @@ Given the value of embracing and exploring variation alongside mean effects in s
 Until recent years there has been a dearth of effect size statistics available for the examination of variation in a meta-analytic framework. However, several have been proposed that we now describe: the standard deviation for individual responses ($SD_{ir}$; @hopkins_individual_2015; @atkinson_true_2015; @atkinson_issues_2019), the log ratio of standard deviations ($\textrm{ln}VR$; termed the "variability ratio"; @hedges_sex_1995), and the log ratio of coefficient of variation ($\textrm{ln}CVR$; termed the "coefficient of variation ratio"; @nakagawa_meta-analysis_2015).
 
 ## Standard deviation for individual responses ($SD_{ir}$)
-In the context of *precision* or *personalised* approaches to exercise prescription comparison of variation between two groups, C and E, the $SD_{ir}$ has been proposed as an approach to determining the extent to which individual responses manifest [@hopkins_individual_2015; @atkinson_true_2015; @atkinson_issues_2019]. The standard deviation of changes scores (post-intervention scores minus pre-intervention scores) within E reflects the gross combination of a number of sources of variation including actual subject-by-intervention interactions (i.e., actual individual responsiveness), within-subject variability in intervention response (i.e., variability in response to the same intervention administered to the same subject), and random error (i.e., from pre and post measurements; @hecksteden_individual_2015). The standard deviation of changes scores from the C group by contrast only reflects random error [@hecksteden_individual_2015]. As such, the difference in these standard deviations can be used to determine the extent to which additional variation has been introduced by the intervention that might reflect individual responses. The $SD_{ir}$, and its sampling variance, $s^2_{SD_{ir}}$ are given by:
+In the context of *precision* or *personalised* approaches to exercise prescription comparison of variation between two groups, control (C) and intervention (E), the $SD_{ir}$ has been proposed as an approach to determining the extent to which individual responses manifest [@hopkins_individual_2015; @atkinson_true_2015; @atkinson_issues_2019]. The standard deviation of changes scores (post-intervention scores minus pre-intervention scores) within the intervention group reflects the gross combination of a number of sources of variation including participant-by-intervention interactions (i.e., actual individual responsiveness or 'trainability'), within-participant variability in intervention response (i.e., variability in response to the same intervention administered to the same participant), and random error (i.e., from pre and post measurements; @hecksteden_individual_2015). The standard deviation of change scores from the control group (assuming it is a non-intervention control group and not something like a 'usual-care' group) by contrast only reflects random error [@hecksteden_individual_2015]. As such, the difference in these standard deviations can be used to determine the extent to which additional variation has been introduced by the intervention that might reflect individual responses. The $SD_{ir}$, and its sampling variance, $s^2_{SD_{ir}}$ are given by:
 
 \begin{equation}
 SD_{ir}=\sqrt{s^2_{E} - s^2_{C}}
@@ -120,29 +121,29 @@ s^2_{\textrm{ln}\hat\sigma}=\frac{1}{2(n-1)}
 (\#eq:lnsigmavar-eq)
 \end{equation}
 
-where $\textrm{ln}\hat\sigma$ is an estimate of $\textrm{ln}\sigma$, and it is assumed with sufficiently large sample size and value of $\sigma$ that $\textrm{ln}\sigma$ is normally distributed with variance $s^2_{\textrm{ln}\sigma}$. Given equations \@ref(eq:lnsigma-eq) and \@ref(eq:lnsigmavar-eq), the logarithm of the ratio of standard deviations of two groups such as C and E, the $\textrm{ln}VR$, and its sampling variance, $s^2_{\textrm{ln}VR}$ is given by: 
+where $\textrm{ln}\hat\sigma$ is an estimate of $\textrm{ln}\sigma$, and it is assumed with sufficiently large sample size and value of $\sigma$ that $\textrm{ln}\sigma$ is normally distributed with variance $s^2_{\textrm{ln}\sigma}$. Given equations \@ref(eq:lnsigma-eq) and \@ref(eq:lnsigmavar-eq), the logarithm of the ratio of standard deviations of two groups, such as a control (C) and intervention (E), the $\textrm{ln}VR$, and its sampling variance, $s^2_{\textrm{ln}VR}$ is given by: 
 
 \begin{equation}
-\textrm{ln}VR=\textrm{ln}(\frac{s_{E}}{s_{C}}+\frac{1}{2(n_{E}-1)}-\frac{1}{2(n_{C}-1)}
+\textrm{ln}VR=\textrm{ln}(\frac{s_{E}}{s_{C}})+\frac{1}{2(n_{E}-1)}-\frac{1}{2(n_{C}-1)}
 (\#eq:lnVR-eq)
 \end{equation}
 
 \begin{equation}
-s^2_{\textrm{ln}VR}=\frac{1}{2(n_{E}-1)}-\frac{1}{2(n_{C}-1)}
+s^2_{\textrm{ln}VR}=\frac{1}{2(n_{E}-1)}+\frac{1}{2(n_{C}-1)}
 (\#eq:lnVRvar-eq)
 \end{equation}
 
-However, due to both $SD_{ir}$ and $\textrm{ln}VR$ being comparisons of absolute variance, they may find limited applicability where the mean of one group is larger than the comparisongroup (e.g., when $\overline{x}_E$ is larger than $\overline{x}_C$). In this case it is likely that the standard deviation will be larger in the group with the larger mean (e.g., $s_{E}$ is larger than $s_{C}$). This mean-variance relationship is common for many variables and datasets[^4] and we will provide examples of this below. They also assume constant measurement error over the range of values for the mean which can impact their utility for examining response variation [@tenan_comment_2020].
+However, due to both $SD_{ir}$ and $\textrm{ln}VR$ being comparisons of absolute variance, they may find limited applicability where the mean of one group is larger than the comparison group (e.g., when $\overline{x}_E$ is larger than $\overline{x}_C$). In this case it is likely that the standard deviation will be larger in the group with the larger mean (e.g., $s_{E}$ is larger than $s_{C}$). This mean-variance relationship is common for many variables and datasets[^4] and we will provide examples of this below. They also assume constant measurement error over the range of values for the mean which can impact their utility for examining response variation [@tenan_comment_2020].
 
 ## Log ratio of coefficient of variation ($\textrm{ln}CVR$)
-The coefficient of variation is the ration of the standard deviation to the mean; therefore, comparison of the coefficient of variation between groups will identify whether standard deviations differ more, or less, than would be predicted by their difference in means where a mean-variance relationship is present. The natural logarithm of the ratio between the coefficients of variation from two groups, the $\textrm{ln}CVR$ is thus a more generally applicable effect size statistic for examining variability between groups. Considering equations \@ref(eq:lnRR-eq) and \@ref(eq:lnVR-eq), the $\textrm{ln}CVR$ is given by:
+The coefficient of variation is the ratio of the standard deviation to the mean; therefore, comparison of the coefficient of variation between groups will identify whether standard deviations differ more, or less, than would be predicted by their difference in means where a mean-variance relationship is present. The natural logarithm of the ratio between the coefficients of variation from two groups, the $\textrm{ln}CVR$ is thus a more generally applicable effect size statistic for examining variability between groups. Considering equations \@ref(eq:lnRR-eq) and \@ref(eq:lnVR-eq), the $\textrm{ln}CVR$ is given by:
 
 \begin{equation}
-\textrm{ln}CVR=\textrm{ln}(\frac{CV_{E}}{CV_{C}}+\frac{1}{2(n_{E}-1)}-\frac{1}{2(n_{C}-1)}
+\textrm{ln}CVR=\textrm{ln}(\frac{CV_{E}}{CV_{C}})+\frac{1}{2(n_{E}-1)}-\frac{1}{2(n_{C}-1)}
 (\#eq:lnCVR-eq)
 \end{equation}
 
-where $CV_{E}$ and $CV_{C}$ are ${s_{E}}/{\overline{x}_{E}}$ and ${s_{C}}/{\overline{x}_{C}}$ respectively. Nakagawa et al. [-@nakagawa_meta-analysis_2015] derived the sampling variance, s^2_{\textrm{ln}CVR}, as:
+where $CV_{E}$ and $CV_{C}$ are ${s_{E}}/{\overline{x}_{E}}$ and ${s_{C}}/{\overline{x}_{C}}$ respectively. Nakagawa et al. [-@nakagawa_meta-analysis_2015] derived the sampling variance, $s^2_{\textrm{ln}CVR}$, as:
 
 \begin{equation}
 \begin{split}
@@ -155,9 +156,7 @@ s^2_{\textrm{ln}CVR}=\frac{s^2_{C}}{n_{C}\overline{x}_{C}}+\frac{1}{2(n_{C}-1)}-
 where $\rho_{\textrm{ln}\overline{x}_{C},\textrm{ln}{s}_{C}}$ and $\rho_{\textrm{ln}\overline{x}_{E},\textrm{ln}{s}_{E}}$ are the correlatios between the means and the standard deviation in the C and E groups respectively on the log scale across studies.
 
 # Examples using resistance training studies
-As noted, the examples presented used data from RT studies included in a recent meta-analysis published in the *Journal of Sport Sciences* [@polito_moderators_2021]. Here we have used their list of included studies and re-extracted data from 111 of these[^5]. All analysis examples were performed in using R (version 4.2.1, "Funny-Looking Kid", The R Foundation for Statistical Computing, 2022) using the **metafor** package [@viechtbauer_conducting_2010]. NOTE - ADD LINK TO ANALYSIS SCRIPT AND DATA
-
-Polito et al. [-@polito_moderators_2021] conducted a systematic review and meta-analysis of randomised trials including a RT intervention where a non-training control group comparison group was included. Their analysis focused upon the SMD between the RT interventions and control groups from the studies included, with both overall effect estimate and moderator analyses performed. Given that Polito et al. [-@polito_moderators_2021] included only studies with non-training control groups, their study selection enables the examination of interindividual response variation by means of comparing the variances in change scores between the RT intervention and control groups. Table \@ref(tab:sample-size-tab) shows the total sample size, along with the median and range by group, across the included studies. Table \@ref(tab:summary-characteristics-tab).
+As noted, the examples presented used data from RT studies included in a recent meta-analysis published in the *Journal of Sport Sciences* [@polito_moderators_2021]. Here we have used their list of included studies and re-extracted data from 111 of these[^5]. All analysis examples were performed in using R (version 4.2.1, "Funny-Looking Kid", The R Foundation for Statistical Computing, 2022) using the **metafor** package [@viechtbauer_conducting_2010]. The extracted dataset, analysis scripts, models, data summaries, and supplementary materials are all available on the Open Science Framework (https://osf.io/2h9ma/).
 
 ```{r sample-size-tab, message=FALSE, warning=FALSE, echo=FALSE}
 
@@ -165,20 +164,41 @@ load(here("models/sample_sizes"))
 
 knitr::kable(
   sample_sizes,
-  caption = 'Sample sizes for resistance training (RT) and non training control (CON) groups for dataset.'
-)
+  caption = 'Sample sizes for resistance training and non training control groups for dataset.'
+  ) %>%
+  pack_rows("RT", 1, 4) %>%
+  pack_rows("CON", 5, 8) %>%
+  footnote(general = c("RT = resistance training", "CON = non-training control")
+           ) %>%
+  row_spec(0, bold = TRUE) %>%
+  kable_classic(full_width = FALSE) 
+
 
 ```
+
+Polito et al. [-@polito_moderators_2021] conducted a systematic review and meta-analysis of randomised trials including a RT intervention where a non-training control comparison group was included. Their analysis focused upon the SMD between the RT interventions and control groups from the studies included, with both overall effect estimate and moderator analyses (i.e., meta-regressions) were performed. Given that Polito et al. [-@polito_moderators_2021] included only studies with non-training control groups, their study selection offers a unqiue context to examine variation of interindividual responses specifically by means of comparing the variances in change scores between the RT intervention and control groups. Table \@ref(tab:sample-size-tab) shows the total sample size, along with the median and range by group, across the included studies. Table \@ref(tab:summary-characteristics-tab) shows the study and participant characteristics.
+
 ```{r summary-characteristics-tab, message=FALSE, warning=FALSE, echo=FALSE}
 
 load(here("models/summary_table"))
 
 knitr::kable(
   summary_table,
-  caption = 'Summary of study and participant characteristics (median [IQR], number of groups [%]).'
-)
+  caption = 'Summary of study and participant characteristics.',
+  align = c("l","c") 
+  ) %>%
+  pack_rows("Training Status",6, 7, bold = FALSE) %>%
+  pack_rows("Sample Type", 8, 9, bold = FALSE) %>%
+  pack_rows("RT + Adjuvant Intervention?", 10, 11, bold = FALSE) %>%
+  pack_rows("Task Failure?", 18, 19, bold = FALSE) %>%
+  footnote(general = c("RT = resistance training; ", "Continuous variables are median (IQR); ", "Categorical variables are count (%); ", "Not all studies reported full descriptive data (see dataset; https://osf.io/kg2z4)")
+           ) %>%
+  row_spec(0, bold = TRUE) %>%
+  kable_classic(full_width = FALSE) %>%
+    kable_styling()
 
 ```
+
 ## Detecting the presence of interindividual response variation to resistance training intervention
 First we conduct a traditional SMD based effect size meta-analysis to explore the effects of RT compared to control for strength outcomes and hypertrophy (i.e., muscle mass/size) outcomes. Polito et al. [-@polito_moderators_2021] originally used a normal random-effects meta-analysis, however the data we extracted were hierarchical in nature (multiple effects within groups within studies) and so a multilevel mixed-effects meta-analysis model with cluster-robust variance estimation was used with random intercepts for study and group[^6]. We then fit the same model for the $SD_{ir}$ and $\textrm{ln}VR$ effect sizes for change scores (i.e., post-intervention minus pre-intervention scores) in order to explore how absolute variance in in responses differed between RT interventions and controls. A positive SMD would indicate that RT interventions increase outcomes compared to controls, whilst a positive $SD_{ir}$ and $\textrm{ln}VR$ would indicate that the introduction of the RT intervention increased variation in responses compared to controls (i.e., suggests the presence of interindividual response variation). 
 
@@ -304,7 +324,7 @@ model_mean_variance_delta_plots
 The reason for this apparent reduction in variation after introduction of an RT intervention is not necessarily discernible from this analysis. Perhaps the introduction of an RT intervention has indirect effects that reduce other sources of random variance (e.g., diet, other physical activity etc.; [@halliday_resistance_2017]), or a ceiling effect on change (i.e., plateau in response; [@steele_long-term_2022]) has a constraining effect [@cortes_martinez_constant_2021]. Hopefully it is clear from the regression model here where we have included both fixed and random predictors as both categorical (i.e., $Outcome$, or $Group$) and continuous (i.e., $\textrm{ln}\overline{x}$) that there is considerable flexibility in the inclusion of predictors (i.e., meta-regression) when exploring variance through a meta-analytic framework. Models can be fit to explore not only how study and group level characteristics moderate effect size estimates when considering not only SMDs, but also when considering the variance based effect size statistics and models employed in this article[^8]. 
 
 # Discussion
-Given the apparent lack of awareness of the utility of meta-analytic frameworks for exploring variance, and the potential value such analyses can offer for the sport and exercise sciences, we have presented some existing effect size statistics and models pertinent to this that hopefully will encourage and support researchers in the field to embrace more than just the mean when engaging in quantitative evidence synthesis. The examples we presented used data from RT studies included in a recent meta-analysis published in the *Journal of Sport Sciences* [@polito_moderators_2021], and so hopefully are more relatable for researchers in sport and exercise sciences. 
+Given the apparent lack of awareness of the utility of meta-analytic frameworks for exploring variance, and the potential value such analyses can offer for the sport and exercise sciences, we have presented some existing effect size statistics and models pertinent to this that hopefully will encourage and support researchers in the field to embrace more than just the mean when engaging in quantitative evidence synthesis. Indeed, for a field such as sport and exercise science where samples sizes are typically small, meta-analysis becomes even more valuable as such small sample in primary studies have even lower statistical power to detect differences in variation as compared to means [@yang_low_2022]. The examples we presented used data from RT studies included in a recent meta-analysis published in the *Journal of Sport Sciences* [@polito_moderators_2021], and so hopefully are more relatable for researchers in sport and exercise sciences. 
 
 Given the considerable interest in *precision* or *personalised* exercise prescription in particular, it is of particular interest to note the different conclusions drawn dependent upon the approach taken to determining from non-training control and RT intervention data whether or not there is *detectable* inter-individual response variation present. Using absolute comparisons of variance such as $SD_{ir}$ and $\textrm{ln}VR$ gave the impression that the introduction of the RT intervention likely increased variance above random error, suggesting the presence of inter-individual response variation. In the case of RT interventions there is evidently an average intervention effect which is positive and as such this result might merely imply that while all likely benefit, some benefit much moreso than others. Exploring variation however even in the absence of average intervention effects might still be important as those with large enough variance could imply that the intervention is at least beneficial to some [@usui_meta-analysis_2021]. Such results might lead researchers to consider that further research exploring subgroup- or participant-by-intervention interactions is required to maximise successful practical application of RT interventions to maximise strength and hypertrophy outcomes from our example.
 

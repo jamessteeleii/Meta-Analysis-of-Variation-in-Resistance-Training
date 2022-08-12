@@ -6,3 +6,4 @@ grDevices
 graphics
 stats
 here
+kableExtra

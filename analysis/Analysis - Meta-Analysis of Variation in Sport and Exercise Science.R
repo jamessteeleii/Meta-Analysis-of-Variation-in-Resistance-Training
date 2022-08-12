@@ -279,7 +279,7 @@ save(forest_plots, file = "plots/forest_plots")
 
 forest_plots
 
-ggsave("SMD_plots.tiff", width = 10, height = 10, device = "tiff", dpi = 300)
+ggsave("plots/SMD_plots.tiff", width = 10, height = 10, device = "tiff", dpi = 300)
 
 
 ###### Comparison of variance of change between RT and CON ######
@@ -529,7 +529,7 @@ save(mean_variance_pre_plots, file = "plots/mean_variance_pre_plots")
 
 mean_variance_pre_plots
 
-ggsave("mean_variance_pre_plots.tiff", width = 10, height = 7.5, device = "tiff", dpi = 300)
+ggsave("plots/mean_variance_pre_plots.tiff", width = 10, height = 7.5, device = "tiff", dpi = 300)
 
 
 ### Fitting a random slope mixed effects model for mean-variance
@@ -572,7 +572,7 @@ model_mean_variance_pre_plots <- ggplot(Data_long_pre, aes(x=log(mean), y=SD_log
   geom_line(aes(x=log(mean), y=pred, color = outcome)) +
   scale_fill_manual("Outcome", values = alpha(c("#009E73", "#D55E00"),0.5)) +
   scale_color_manual("Outcome", values = alpha(c("#009E73", "#D55E00"),0.5)) +
-  labs(x = "Log Mean Change Score", y = "Log Standard Deviation of the Change Score", color = "Outcome", shape = "", fill = "") +
+  labs(x = "Log Mean", y = "Log Standard Deviation", color = "Outcome", shape = "", fill = "") +
   theme_classic() +
   guides(size = "none", fill = "none")
 
@@ -580,7 +580,7 @@ save(model_mean_variance_pre_plots, file = "plots/model_mean_variance_pre_plots"
 
 model_mean_variance_pre_plots
 
-ggsave("model_mean_variance_pre_plots.tiff", width = 7.5, height = 5, device = "tiff", dpi = 300)
+ggsave("plots/model_mean_variance_pre_plots.tiff", width = 7.5, height = 5, device = "tiff", dpi = 300)
 
 ###### Section - Reanalysis of interindividual response variation using $lnCVR$ and the random slope mixed effects model
 
@@ -692,7 +692,7 @@ save(mean_variance_delta_plots, file = "plots/mean_variance_delta_plots")
 
 mean_variance_delta_plots
 
-ggsave("Mean_variance_delta_plots.tiff", width = 10, height = 7.5, device = "tiff", dpi = 300)
+ggsave("plots/Mean_variance_delta_plots.tiff", width = 10, height = 7.5, device = "tiff", dpi = 300)
 
 ### The assumption of linearity seems to be far better supported for log SD and log mean
 ### There is far more heteroskedasticity in the raw SD and mean data
@@ -861,7 +861,7 @@ save(model_mean_variance_delta_plots, file = "plots/model_mean_variance_delta_pl
 
 model_mean_variance_delta_plots
 
-ggsave("model_mean_variance_delta_plots.tiff", width = 10, height = 5, device = "tiff", dpi = 300)
+ggsave("plots/model_mean_variance_delta_plots.tiff", width = 10, height = 5, device = "tiff", dpi = 300)
 
 
 ###### Stuff for supplementary materials?
@@ -874,7 +874,7 @@ sample_sizes <- Data %>%
   group_by(group) %>%
   summarise(RT_n = max(RT_n), 
             CON_n = max(CON_n)) %>%
-  summarise(`All RT` = sum(RT_n),
+  summarise(`All` = sum(RT_n),
             `Minumum RT` = min(RT_n),
             `Median RT` = median(RT_n),
             `Maximum RT` = max(RT_n),
@@ -934,8 +934,11 @@ summary_table$Characteristic <- recode(summary_table$Characteristic,
                                        reps = "Number of Repetitions",
                                        load = "Load (%1RM)",
                                        task_failure_y_n = "Task Failure?"
-                                       
                                        )
+summary_table <- summary_table[-c(6,9,12,21),]
+
+rownames(summary_table) <- NULL
+
 
 save(summary_table, file = "models/summary_table")
 
@@ -2549,7 +2552,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                       `I2 group` = round(I2bw_strength_freq, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
-                                      Moderator = "NUmber of Exercises",
+                                      Moderator = "Number of Exercises",
                                       Estimate = round(RobuEstMultiLevelModel_strength_exercises$b, 2)[2],
                                       Lower = round(RobuEstMultiLevelModel_strength_exercises$ci.lb, 2)[2],
                                       Upper = round(RobuEstMultiLevelModel_strength_exercises$ci.ub, 2)[2],
@@ -2685,7 +2688,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     `I2 group` = round(I2bw_logCVR_strength_freq, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
-                                    Moderator = "NUmber of Exercises",
+                                    Moderator = "Number of Exercises",
                                     Estimate = round(RobuEstMultiLevelModel_logCVR_strength_exercises$b, 2)[2],
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_exercises$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_exercises$ci.ub, 2)[2],
@@ -2821,7 +2824,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     `I2 group` = round(I2bw_hypertrophy_freq, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
-                                    Moderator = "NUmber of Exercises",
+                                    Moderator = "Number of Exercises",
                                     Estimate = round(RobuEstMultiLevelModel_hypertrophy_exercises$b, 2)[2],
                                     Lower = round(RobuEstMultiLevelModel_hypertrophy_exercises$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_hypertrophy_exercises$ci.ub, 2)[2],
@@ -2957,7 +2960,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     `I2 group` = round(I2bw_logCVR_hypertrophy_freq, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
-                                    Moderator = "NUmber of Exercises",
+                                    Moderator = "Number of Exercises",
                                     Estimate = round(RobuEstMultiLevelModel_logCVR_hypertrophy_exercises$b, 2)[2],
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_exercises$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_exercises$ci.ub, 2)[2],
@@ -3006,10 +3009,33 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                            ) 
 
 rownames(mods_SMD_logCVR) <- NULL
-               
-mods_SMD_logCVR %>% formattable::formattable()
 
 save(mods_SMD_logCVR, file = "models/mods_SMD_logCVR")
+
+library(kableExtra)               
+library(webshot)
+
+mods_SMD_logCVR <- mods_SMD_logCVR[,-c(1,2)]
+
+knitr::kable(
+  mods_SMD_logCVR,
+  caption = "Meta-regression models for study and participant characteristics as moderators of SMD and lnCVR effect sizes",
+  align = c("l","c")
+) %>%
+  pack_rows("Strength Outcomes",1, 54, bold = FALSE) %>%
+  pack_rows("Hypertrophy Outcomes", 55, 120, bold = FALSE) %>%
+  pack_rows("SMD", 1, 27, bold = FALSE) %>%
+  pack_rows("lnCVR", 28, 54, bold = FALSE) %>%
+  pack_rows("SMD", 55, 87, bold = FALSE) %>%
+  pack_rows("lnCVR", 88, 120, bold = FALSE) %>%
+  footnote(general = c("SMD = standardised mean difference; ", "lnCVR = log ratio of coefficient of variation; ", "RT = resistance training")
+  ) %>%
+  row_spec(0, bold = TRUE) %>%
+  kable_classic(full_width = FALSE) %>%
+  kable_styling() %>%
+  save_kable("models/table_mods_SMD_logCVR.html")
+
+webshot("models/table_mods_SMD_logCVR.html", "models/table_mods_SMD_logCVR.pdf")
 
 #### Galaxy plot
 
@@ -3034,4 +3060,10 @@ save(SMD_v_logCVR_plot, file = "plots/SMD_v_logCVR_plot")
 
 SMD_v_logCVR_plot
 
-ggsave("SMD_v_logCVR_plot.tiff", width = 7.5, height = 5, device = "tiff", dpi = 300)
+ggsave("plots/SMD_v_logCVR_plot.tiff", width = 7.5, height = 5, device = "tiff", dpi = 300)
+
+
+
+
+load(here("models","RobuEstMultiLevelModel_logCVR_strength"))
+RobuEstMultiLevelModel_logCVR_strength$beta
