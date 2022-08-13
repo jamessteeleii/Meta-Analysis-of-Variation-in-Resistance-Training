@@ -37,7 +37,7 @@ load(here("models/mods_SMD_logCVR"))
 
 ```
 # Introduction
-Though the quantitative synthesis of results across studies has existed since the 17th century [@plackett_studies_1958], the modern day term "meta-analysis" as it is now referred to was coined by Gene Glass in [-@glass_primary_1976]. Since that time use of meta-analysis as a tool for the synthesis of research in sport and exercise science has increased considerably [@hagger_meta-analysis_2022]. One area of sport and exercise science which has comprised a considerable proportion of that growth appears to have been in the study of resistance training (RT; figure \@ref(fig:trend-plot)). Given such growth, throughout the paper we use RT studies as a hopefully familiar example for sport and exercise science researchers.
+Though the quantitative synthesis of results across studies has existed since the 17th century [@plackett_studies_1958], the modern day term "meta-analysis" as it is now referred to was coined by Gene Glass in [-@glass_primary_1976]. Since that time use of meta-analysis as a tool for the synthesis of research in sport and exercise science has increased considerably [@hagger_meta-analysis_2022]. One area of sport and exercise science which has comprised a reasonable proportion of that growth in recent years appears to have been in the study of resistance training (RT; figure \@ref(fig:trend-plot)). Given such growth, throughout the paper we use RT studies as a hopefully familiar example for sport and exercise science researchers.
 ```{r trend-plot, echo=FALSE,fig.height=4, fig.width=6, fig.cap="Trends in meta-analyses published in sport and exercise science since 1976."}
 
 load(here("plots/trends_plot"))

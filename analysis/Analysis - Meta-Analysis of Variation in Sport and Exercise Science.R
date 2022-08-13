@@ -19,17 +19,17 @@ library(europepmc)
 
 ##### Trend of Meta-Analysis in Resistance Training
 
-SES_meta_trend <- epmc_hits_trend(query = "(sport OR exercise) AND meta analysis",
+SES_meta_trend <- epmc_hits_trend(query = 'TITLE: (sport OR exercise) AND "meta analysis"',
                                   period = 1976:2022) %>%
   mutate(`Search string` = "(sport OR exercise) AND meta analysis")
 
-RT_meta_trend <- epmc_hits_trend(query = "(resistance training OR strength training) AND meta analysis",
+RT_meta_trend <- epmc_hits_trend(query = 'TITLE: ("resistance training" OR "strength training") AND "meta analysis"',
                                  period = 1976:2022) %>%
   mutate(`Search string` = "(resistance training OR strength training) AND meta analysis")
 
 trends <- rbind(SES_meta_trend, RT_meta_trend) %>%
-  mutate(`Search string` = factor(`Search string`, levels = c("(sport OR exercise) AND meta analysis",
-                                                              "(resistance training OR strength training) AND meta analysis")))
+  mutate(`Search string` = factor(`Search string`, levels = c('(sport OR exercise) AND meta analysis',
+                                                              '(resistance training OR strength training) AND meta analysis')))
 
 trends_plot <- trends %>%
   ggplot(aes(x = year, y = (query_hits / all_hits)*100, linetype = `Search string`)) +
