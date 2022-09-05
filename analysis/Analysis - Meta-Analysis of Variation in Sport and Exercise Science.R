@@ -17,6 +17,14 @@ library(tidyverse)
 library(patchwork)
 library(europepmc)
 
+
+# TODO - Shinichi's comments
+
+# VRC & CVRC needs to be used
+# also consider "SMCRH" (Bonett 2008) and ROMC (Lagieuness 2011)
+# random slope models are wrong --- struc = "GEN" 
+
+
 ##### Trend of Meta-Analysis in Resistance Training
 
 SES_meta_trend <- epmc_hits_trend(query = 'TITLE: (sport OR exercise) AND "meta analysis"',
