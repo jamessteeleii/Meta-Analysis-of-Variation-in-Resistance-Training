@@ -2,11 +2,10 @@
 
 # title: "Meta-Analysis of Variation in Sport and Exercise Science"
 # subtitle: "Examples of Application Within Resistance Training Research"
-# author: 
+# authors: 
 #   - James Steele
 # - James Fisher
 # - Dave Smith
-# - Andrew Vigotsky
 # - Brad Schoenfeld
 # - Yefeng Yang
 # - Shinichi Nakagawa
@@ -16,14 +15,8 @@ library(metafor)
 library(tidyverse)
 library(patchwork)
 library(europepmc)
-
-
-# TODO - Shinichi's comments
-
-# VRC & CVRC needs to be used
-# also consider "SMCRH" (Bonett 2008) and ROMC (Lagieuness 2011)
-# random slope models are wrong --- struc = "GEN" 
-
+library(kableExtra)               
+library(webshot)
 
 ##### Trend of Meta-Analysis in Resistance Training
 
@@ -93,7 +86,7 @@ Data <- escalc(measure = "ZCOR", ri = RT_ri, ni = RT_n, data = Data)
 
 Meta_RT_ri <- rma.mv(yi, V=vi, data=Data,
                      slab=paste(label),
-                     random = list(~ 1 | study, ~ 1 | group), method="REML",
+                     random = list(~ 1 | study, ~ 1 | arm), method="REML",
                      control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 RobuEstMeta_RT_ri <- robust(Meta_RT_ri, Data$study)
@@ -104,10 +97,10 @@ Data$RT_ri <- ifelse(is.na(Data$RT_ri), z2r_RT, Data$RT_ri)
 
 Data <- escalc(measure = "ZCOR", ri = CON_ri, ni = CON_n, data = Data)
 
-### Note, data is coded with study and group as having explicit nesting so all random effects are (~ 1 | study, ~ 1 | group)
+### Note, data is coded with study and arm as having explicit nesting so all random effects are (~ 1 | study, ~ 1 | arm)
 Meta_CON_ri <- rma.mv(yi, V=vi, data=Data,
                      slab=paste(label),
-                     random = list(~ 1 | study, ~ 1 | group), method="REML",
+                     random = list(~ 1 | study, ~ 1 | arm), method="REML",
                      control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 RobuEstMeta_CON_ri <- robust(Meta_CON_ri, Data$study)
@@ -125,6 +118,7 @@ Data$CON_delta_sd <- replmiss(Data$CON_delta_sd, with(Data, sqrt(CON_pre_sd^2 + 
 ###### Comparison of standardised mean changes between RT and CON ######
 
 ### Standardised mean difference effect size calculations 
+# Following Morris (2008) g_ppc2; see https://www.metafor-project.org/doku.php/analyses:morris2008
 Data$SD_pool <- sqrt(((Data$RT_n - 1)*Data$RT_pre_sd^2 + (Data$CON_n - 1)*Data$CON_pre_sd^2) / (Data$RT_n + Data$CON_n - 2))
 
 Data_RT <- escalc(measure="SMCR", m1i=RT_post_m, 
@@ -140,44 +134,44 @@ Data_SMD$vi <- (Data_RT$vi + Data_CON$vi)
 Data_SMD_strength <- Data_SMD %>% 
     filter(!is.na(yi) &  outcome == "strength")
 
-MultiLevelModel_strength <- rma.mv(yi, V=vi, data=Data_SMD_strength,
+MultiLevelModel_SMD_strength <- rma.mv(yi, V=vi, data=Data_SMD_strength,
                                          slab=paste(label),
-                                         random = list(~ 1 | study, ~ 1 | group), method="REML",
+                                         random = list(~ 1 | study, ~ 1 | arm), method="REML",
                                    control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength, file = "models/MultiLevelModel_strength")
+save(MultiLevelModel_SMD_strength, file = "models/MultiLevelModel_SMD_strength")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength$vi)
-X <- model.matrix(MultiLevelModel_strength)
+X <- model.matrix(MultiLevelModel_SMD_strength)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength <- 100 * sum(MultiLevelModel_strength$sigma2) / (sum(MultiLevelModel_strength$sigma2) + (MultiLevelModel_strength$k-MultiLevelModel_strength$p)/sum(diag(P)))
-I2bw_strength <- 100 * MultiLevelModel_strength$sigma2 / (sum(MultiLevelModel_strength$sigma2) + (MultiLevelModel_strength$k-MultiLevelModel_strength$p)/sum(diag(P)))
+I2_SMD_strength <- 100 * sum(MultiLevelModel_SMD_strength$sigma2) / (sum(MultiLevelModel_SMD_strength$sigma2) + (MultiLevelModel_SMD_strength$k-MultiLevelModel_SMD_strength$p)/sum(diag(P)))
+I2bw_SMD_strength <- 100 * MultiLevelModel_SMD_strength$sigma2 / (sum(MultiLevelModel_SMD_strength$sigma2) + (MultiLevelModel_SMD_strength$k-MultiLevelModel_SMD_strength$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength <- robust(MultiLevelModel_strength, Data_SMD_strength$study)
+RobuEstMultiLevelModel_SMD_strength <- robust(MultiLevelModel_SMD_strength, Data_SMD_strength$study)
 
-save(RobuEstMultiLevelModel_strength, file = "models/RobuEstMultiLevelModel_strength")
+save(RobuEstMultiLevelModel_SMD_strength, file = "models/RobuEstMultiLevelModel_SMD_strength")
 
 ### Caterpillar plot 
 
 # Overall estimate
-diamond_strength <- data.frame(x = c(RobuEstMultiLevelModel_strength$b[1] + (RobuEstMultiLevelModel_strength$se*1.96),
-                            RobuEstMultiLevelModel_strength$b[1],
-                            RobuEstMultiLevelModel_strength$b[1] - (RobuEstMultiLevelModel_strength$se*1.96),
-                            RobuEstMultiLevelModel_strength$b[1]),
+diamond_SMD_strength <- data.frame(x = c(RobuEstMultiLevelModel_SMD_strength$b[1] + (RobuEstMultiLevelModel_SMD_strength$se*1.96),
+                            RobuEstMultiLevelModel_SMD_strength$b[1],
+                            RobuEstMultiLevelModel_SMD_strength$b[1] - (RobuEstMultiLevelModel_SMD_strength$se*1.96),
+                            RobuEstMultiLevelModel_SMD_strength$b[1]),
                       y = c(-15,-25,-15,-5))
 
 # Prediction interval
-PI_strength <- as.data.frame(predict(RobuEstMultiLevelModel_strength))
+PI_SMD_strength <- as.data.frame(predict(RobuEstMultiLevelModel_SMD_strength))
 
 # I2 labels
-I2_strength_lab <- data.frame(level = c("study", "group"),
-                              I2 = I2bw_strength) %>%
+I2_SMD_strength_lab <- data.frame(level = c("study", "arm"),
+                              I2 = I2bw_SMD_strength) %>%
   pivot_wider(names_from = "level", values_from = "I2")
 
 # Plot
-forest_strength <- Data_SMD_strength %>% 
+forest_SMD_strength <- Data_SMD_strength %>% 
   mutate(es = factor(es, levels = es[order(yi)]),
          se = sqrt(vi)) %>%
   ggplot(aes(x=yi, y=es)) +
@@ -186,19 +180,19 @@ forest_strength <- Data_SMD_strength %>%
   scale_x_continuous(limits = c(-2,7.5), breaks = c(-1,0,1,2,3,4,5,6)) +
   geom_linerange(aes(xmin = yi - (se*1.96), xmax = yi + (se*1.96)), alpha=0.25) +
   scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
-  geom_text(data = mutate_if(PI_strength,
+  geom_text(data = mutate_if(PI_SMD_strength,
                              is.numeric, round, 2),
             aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
                 x = 5, y = 110), hjust = "centre", size = 3) +
-  geom_text(data = PI_strength,
+  geom_text(data = PI_SMD_strength,
             aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
                 x = 5, y = 90), hjust = "centre", size = 3) +
-  geom_text(data = I2_strength_lab,
-            aes(label = glue::glue("I Squared [Study = {round(study,1)}%; Group = {round(group,1)}%]"),
+  geom_text(data = I2_SMD_strength_lab,
+            aes(label = glue::glue("I Squared [Study = {round(study,1)}%; Arm = {round(arm,1)}%]"),
                 x = 5, y = 70), hjust = "centre", size = 3) +
-  geom_segment(data = PI_strength, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub), 
+  geom_segment(data = PI_SMD_strength, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub), 
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
-  geom_polygon(data=diamond_strength, aes(x=x,y=y)) +
+  geom_polygon(data=diamond_SMD_strength, aes(x=x,y=y)) +
   labs(y = "",
        x = "Standardised Mean Difference (Positive Values Favour Resistance Training)",
        title = "Strength Outcomes") +
@@ -207,48 +201,50 @@ forest_strength <- Data_SMD_strength %>%
         axis.ticks.y = element_blank(),
         axis.line.y = element_blank())
 
+save(forest_SMD_strength, file = "plots/forest_SMD_strength")
+
 ### Hypertrophy
 Data_SMD_hypertrophy <- Data_SMD %>% 
     filter(!is.na(yi) &  outcome == "hypertrophy")
 
-MultiLevelModel_hypertrophy <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy,
+MultiLevelModel_SMD_hypertrophy <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy,
                                    slab=paste(label),
-                                   random = list(~ 1 | study, ~ 1 | group), method="REML",
+                                   random = list(~ 1 | study, ~ 1 | arm), method="REML",
                                    control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy, file = "models/MultiLevelModel_hypertrophy")
+save(MultiLevelModel_SMD_hypertrophy, file = "models/MultiLevelModel_SMD_hypertrophy")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy <- 100 * sum(MultiLevelModel_hypertrophy$sigma2) / (sum(MultiLevelModel_hypertrophy$sigma2) + (MultiLevelModel_hypertrophy$k-MultiLevelModel_hypertrophy$p)/sum(diag(P)))
-I2bw_hypertrophy <- 100 * MultiLevelModel_hypertrophy$sigma2 / (sum(MultiLevelModel_hypertrophy$sigma2) + (MultiLevelModel_hypertrophy$k-MultiLevelModel_hypertrophy$p)/sum(diag(P)))
+I2_SMD_hypertrophy <- 100 * sum(MultiLevelModel_SMD_hypertrophy$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy$sigma2) + (MultiLevelModel_SMD_hypertrophy$k-MultiLevelModel_SMD_hypertrophy$p)/sum(diag(P)))
+I2bw_SMD_hypertrophy <- 100 * MultiLevelModel_SMD_hypertrophy$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy$sigma2) + (MultiLevelModel_SMD_hypertrophy$k-MultiLevelModel_SMD_hypertrophy$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy <- robust(MultiLevelModel_hypertrophy, Data_SMD_hypertrophy$study)
+RobuEstMultiLevelModel_SMD_hypertrophy <- robust(MultiLevelModel_SMD_hypertrophy, Data_SMD_hypertrophy$study)
 
-save(RobuEstMultiLevelModel_hypertrophy, file = "models/RobuEstMultiLevelModel_hypertrophy")
+save(RobuEstMultiLevelModel_SMD_hypertrophy, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy")
 
 ### Caterpillar plot 
 
 # Overall estimate
-diamond_hypertrophy <- data.frame(x = c(RobuEstMultiLevelModel_hypertrophy$b[1] + (RobuEstMultiLevelModel_hypertrophy$se*1.96),
-                            RobuEstMultiLevelModel_hypertrophy$b[1],
-                            RobuEstMultiLevelModel_hypertrophy$b[1] - (RobuEstMultiLevelModel_hypertrophy$se*1.96),
-                            RobuEstMultiLevelModel_hypertrophy$b[1]),
+diamond_SMD_hypertrophy <- data.frame(x = c(RobuEstMultiLevelModel_SMD_hypertrophy$b[1] + (RobuEstMultiLevelModel_SMD_hypertrophy$se*1.96),
+                            RobuEstMultiLevelModel_SMD_hypertrophy$b[1],
+                            RobuEstMultiLevelModel_SMD_hypertrophy$b[1] - (RobuEstMultiLevelModel_SMD_hypertrophy$se*1.96),
+                            RobuEstMultiLevelModel_SMD_hypertrophy$b[1]),
                       y = c(-15,-25,-15,-5))
 
 # Prediction interval
-PI_hypertrophy <- as.data.frame(predict(RobuEstMultiLevelModel_hypertrophy))
+PI_SMD_hypertrophy <- as.data.frame(predict(RobuEstMultiLevelModel_SMD_hypertrophy))
 
 # I2 labels
-I2_hypertrophy_lab <- data.frame(level = c("study", "group"),
-                              I2 = I2bw_hypertrophy) %>%
+I2_SMD_hypertrophy_lab <- data.frame(level = c("study", "arm"),
+                              I2 = I2bw_SMD_hypertrophy) %>%
   pivot_wider(names_from = "level", values_from = "I2")
 
 # Plot
-forest_hypertrophy <- Data_SMD_hypertrophy %>% 
+forest_SMD_hypertrophy <- Data_SMD_hypertrophy %>% 
   mutate(es = factor(es, levels = es[order(yi)]),
          se = sqrt(vi)) %>%
   ggplot(aes(x=yi, y=es)) +
@@ -257,19 +253,19 @@ forest_hypertrophy <- Data_SMD_hypertrophy %>%
   scale_x_continuous(limits = c(-2,7.5), breaks = c(-1,0,1,2,3,4,5,6)) +
   geom_linerange(aes(xmin = yi - (se*1.96), xmax = yi + (se*1.96)), alpha=0.25) +
   scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
-  geom_text(data = mutate_if(PI_hypertrophy,
+  geom_text(data = mutate_if(PI_SMD_hypertrophy,
                              is.numeric, round, 2),
             aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
                 x = 5, y = 110), hjust = "centre", size = 3) +
-  geom_text(data = PI_hypertrophy,
+  geom_text(data = PI_SMD_hypertrophy,
             aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
                 x = 5, y = 90), hjust = "centre", size = 3) +
-  geom_text(data = I2_hypertrophy_lab,
-            aes(label = glue::glue("I Squared [Study = {round(study,1)}%; Group = {round(group,1)}%]"),
+  geom_text(data = I2_SMD_hypertrophy_lab,
+            aes(label = glue::glue("I Squared [Study = {round(study,1)}%; Arm = {round(arm,1)}%]"),
                 x = 5, y = 70), hjust = "centre", size = 3) +
-  geom_segment(data = PI_hypertrophy, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub), 
+  geom_segment(data = PI_SMD_hypertrophy, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub), 
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
-  geom_polygon(data=diamond_hypertrophy, aes(x=x,y=y)) +
+  geom_polygon(data=diamond_SMD_hypertrophy, aes(x=x,y=y)) +
   labs(y = "",
        x = "Standardised Mean Difference (Positive Values Favour Resistance Training)",
        title = "Hypertrophy Outcomes") +
@@ -278,16 +274,184 @@ forest_hypertrophy <- Data_SMD_hypertrophy %>%
         axis.ticks.y = element_blank(),
         axis.line.y = element_blank())
 
+save(forest_SMD_hypertrophy, file = "plots/forest_SMD_hypertrophy")
 
 ### Combine Plots
-forest_plots <- (forest_strength / forest_hypertrophy) + 
+forest_SMD_plots <- (forest_SMD_strength / forest_SMD_hypertrophy) + 
   plot_annotation(tag_levels = "A")
 
-save(forest_plots, file = "plots/forest_plots")
+save(forest_SMD_plots, file = "plots/forest_SMD_plots")
 
-forest_plots
+forest_SMD_plots
 
-ggsave("plots/SMD_plots.tiff", width = 10, height = 10, device = "tiff", dpi = 300)
+ggsave("plots/forest_SMD_plots.tiff", width = 10, height = 10, device = "tiff", dpi = 300)
+
+
+###### Comparison of response ratios between RT and CON ######
+
+### Response ratio difference effect size calculations 
+# Adapting Morris et al., (2007) L_i; see https://figshare.com/articles/dataset/Appendix_B_Effect_sizes_and_their_sampling_variances_/3527621?backTo=/collections/DIRECT_AND_INTERACTIVE_EFFECTS_OF_ENEMIES_AND_MUTUALISTS_ON_PLANT_PERFORMANCE_A_META-ANALYSIS/3299699
+
+Data$lnRR_yi <- log(Data$RT_post_m/Data$RT_pre_m) - log(Data$CON_post_m/Data$CON_pre_m)
+Data$lnRR_vi <- (Data$CON_post_sd/Data$CON_post_m*Data$CON_n) + (Data$CON_pre_sd/Data$CON_pre_m*Data$CON_n) +(Data$CON_post_sd/Data$CON_post_m*Data$CON_n) + (Data$CON_pre_sd/Data$CON_pre_m*Data$CON_n)
+
+Data_RR <- Data
+
+### Strength
+Data_RR_strength <- Data_RR %>% 
+  filter(!is.na(lnRR_yi) & !is.na(lnRR_vi) & outcome == "strength")
+
+MultiLevelModel_RR_strength <- rma.mv(lnRR_yi, V=lnRR_vi, data=Data_RR_strength,
+                                   slab=paste(label),
+                                   random = list(~ 1 | study, ~ 1 | arm), method="REML",
+                                   control=list(optimizer="optim", optmethod="Nelder-Mead"))
+
+save(MultiLevelModel_RR_strength, file = "models/MultiLevelModel_RR_strength")
+
+### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
+W <- diag(1/Data_RR_strength$lnRR_vi)
+X <- model.matrix(MultiLevelModel_RR_strength)
+P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
+I2_RR_strength <- 100 * sum(MultiLevelModel_RR_strength$sigma2) / (sum(MultiLevelModel_RR_strength$sigma2) + (MultiLevelModel_RR_strength$k-MultiLevelModel_RR_strength$p)/sum(diag(P)))
+I2bw_RR_strength <- 100 * MultiLevelModel_RR_strength$sigma2 / (sum(MultiLevelModel_RR_strength$sigma2) + (MultiLevelModel_RR_strength$k-MultiLevelModel_RR_strength$p)/sum(diag(P)))
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_RR_strength <- robust(MultiLevelModel_RR_strength, Data_RR_strength$study)
+
+save(RobuEstMultiLevelModel_RR_strength, file = "models/RobuEstMultiLevelModel_RR_strength")
+
+### Caterpillar plot 
+
+# Overall estimate
+diamond_RR_strength <- data.frame(x = c(RobuEstMultiLevelModel_RR_strength$b[1] + (RobuEstMultiLevelModel_RR_strength$se*1.96),
+                                     RobuEstMultiLevelModel_RR_strength$b[1],
+                                     RobuEstMultiLevelModel_RR_strength$b[1] - (RobuEstMultiLevelModel_RR_strength$se*1.96),
+                                     RobuEstMultiLevelModel_RR_strength$b[1]),
+                               y = c(-15,-25,-15,-5))
+
+# Prediction interval
+PI_RR_strength <- as.data.frame(predict(RobuEstMultiLevelModel_RR_strength))
+
+# I2 labels
+I2_RR_strength_lab <- data.frame(level = c("study", "arm"),
+                              I2 = I2bw_RR_strength) %>%
+  pivot_wider(names_from = "level", values_from = "I2")
+
+# Plot
+forest_RR_strength <- Data_RR_strength %>% 
+  mutate(es = factor(es, levels = es[order(lnRR_yi)]),
+         se = sqrt(lnRR_vi)) %>%
+  ggplot(aes(x=(exp(lnRR_yi)-1)*100, y=es)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_point(size=0.5, alpha=0.25) +
+  # scale_x_continuous(limits = c(-20,40), breaks = c(-20,-10,0,10,20,30,40)) +
+  geom_linerange(aes(xmin = (exp(lnRR_yi)-1)*100 - (se*1.96), xmax = (exp(lnRR_yi)-1)*100 + (se*1.96)), alpha=0.25) +
+  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
+  geom_text(data = mutate_if(PI_RR_strength,
+                             is.numeric, round, 2),
+            aes(label = glue::glue("Overall Estimate = {round((exp(pred)-1)*100,2)} [95% Confidence Interval: {round((exp(ci.lb)-1)*100,2)} to {round((exp(ci.ub)-1)*100,2)}]"),
+                x = 100, y = 110), hjust = "centre", size = 3) +
+  geom_text(data = PI_RR_strength,
+            aes(label = glue::glue("[95% Prediction Interval: {round((exp(pi.lb)-1)*100,2)} to {round((exp(pi.ub)-1)*100,2)}]"),
+                x = 100, y = 90), hjust = "centre", size = 3) +
+  geom_text(data = I2_RR_strength_lab,
+            aes(label = glue::glue("I Squared [Study = {round(study,1)}%; Arm = {round(arm,1)}%]"),
+                x = 100, y = 70), hjust = "centre", size = 3) +
+  geom_segment(data = PI_RR_strength, aes(y=-15, yend=-15, x=(exp(pi.lb)-1)*100, xend=(exp(pi.ub)-1)*100),
+               arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
+  geom_polygon(data=diamond_RR_strength, aes(x=(exp(x)-1)*100,y=y)) +
+  labs(y = "",
+       x = "Exponentiated Response Ratio (%; Positive Values Favour Resistance Training)",
+       title = "Strength Outcomes") +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank())
+
+save(forest_RR_strength, file = "plots/forest_RR_strength")
+
+### Hypertrophy
+Data_RR_hypertrophy <- Data_RR %>% 
+  filter(!is.na(lnRR_yi) & !is.na(lnRR_vi) & outcome == "hypertrophy")
+
+MultiLevelModel_RR_hypertrophy <- rma.mv(lnRR_yi, V=lnRR_vi, data=Data_RR_hypertrophy,
+                                      slab=paste(label),
+                                      random = list(~ 1 | study, ~ 1 | arm), method="REML",
+                                      control=list(optimizer="optim", optmethod="Nelder-Mead"))
+
+save(MultiLevelModel_RR_hypertrophy, file = "models/MultiLevelModel_RR_hypertrophy")
+
+### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
+W <- diag(1/Data_RR_hypertrophy$lnRR_vi)
+X <- model.matrix(MultiLevelModel_RR_hypertrophy)
+P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
+I2_RR_hypertrophy <- 100 * sum(MultiLevelModel_RR_hypertrophy$sigma2) / (sum(MultiLevelModel_RR_hypertrophy$sigma2) + (MultiLevelModel_RR_hypertrophy$k-MultiLevelModel_RR_hypertrophy$p)/sum(diag(P)))
+I2bw_RR_hypertrophy <- 100 * MultiLevelModel_RR_hypertrophy$sigma2 / (sum(MultiLevelModel_RR_hypertrophy$sigma2) + (MultiLevelModel_RR_hypertrophy$k-MultiLevelModel_RR_hypertrophy$p)/sum(diag(P)))
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_RR_hypertrophy <- robust(MultiLevelModel_RR_hypertrophy, Data_RR_hypertrophy$study)
+
+save(RobuEstMultiLevelModel_RR_hypertrophy, file = "models/RobuEstMultiLevelModel_RR_hypertrophy")
+
+### Caterpillar plot 
+
+# Overall estimate
+diamond_RR_hypertrophy <- data.frame(x = c(RobuEstMultiLevelModel_RR_hypertrophy$b[1] + (RobuEstMultiLevelModel_RR_hypertrophy$se*1.96),
+                                        RobuEstMultiLevelModel_RR_hypertrophy$b[1],
+                                        RobuEstMultiLevelModel_RR_hypertrophy$b[1] - (RobuEstMultiLevelModel_RR_hypertrophy$se*1.96),
+                                        RobuEstMultiLevelModel_RR_hypertrophy$b[1]),
+                                  y = c(-15,-25,-15,-5))
+
+# Prediction interval
+PI_RR_hypertrophy <- as.data.frame(predict(RobuEstMultiLevelModel_RR_hypertrophy))
+
+# I2 labels
+I2_RR_hypertrophy_lab <- data.frame(level = c("study", "arm"),
+                                 I2 = I2bw_RR_hypertrophy) %>%
+  pivot_wider(names_from = "level", values_from = "I2")
+
+# Plot
+forest_RR_hypertrophy <- Data_RR_hypertrophy %>% 
+  mutate(es = factor(es, levels = es[order(lnRR_yi)]),
+         se = sqrt(lnRR_vi)) %>%
+  ggplot(aes(x=(exp(lnRR_yi)-1)*100, y=es)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_point(size=0.5, alpha=0.25) +
+  # scale_x_continuous(limits = c(-20,40), breaks = c(-20,-10,0,10,20,30,40)) +
+  geom_linerange(aes(xmin = (exp(lnRR_yi)-1)*100 - (se*1.96), xmax = (exp(lnRR_yi)-1)*100 + (se*1.96)), alpha=0.25) +
+  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
+  geom_text(data = mutate_if(PI_RR_hypertrophy,
+                             is.numeric, round, 2),
+            aes(label = glue::glue("Overall Estimate = {round((exp(pred)-1)*100,2)} [95% Confidence Interval: {round((exp(ci.lb)-1)*100,2)} to {round((exp(ci.ub)-1)*100,2)}]"),
+                x = 45, y = 110), hjust = "centre", size = 3) +
+  geom_text(data = PI_RR_hypertrophy,
+            aes(label = glue::glue("[95% Prediction Interval: {round((exp(pi.lb)-1)*100,2)} to {round((exp(pi.ub)-1)*100,2)}]"),
+                x = 45, y = 90), hjust = "centre", size = 3) +
+  geom_text(data = I2_RR_hypertrophy_lab,
+            aes(label = glue::glue("I Squared [Study = {round(study,1)}%; Arm = {round(arm,1)}%]"),
+                x = 45, y = 70), hjust = "centre", size = 3) +
+  geom_segment(data = PI_RR_hypertrophy, aes(y=-15, yend=-15, x=(exp(pi.lb)-1)*100, xend=(exp(pi.ub)-1)*100),
+               arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
+  geom_polygon(data=diamond_RR_hypertrophy, aes(x=(exp(x)-1)*100,y=y)) +
+  labs(y = "",
+       x = "Exponentiated Response Ratio (%; Positive Values Favour Resistance Training)",
+       title = "Hypertrophy Outcomes") +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank())
+
+save(forest_RR_hypertrophy, file = "plots/forest_RR_hypertrophy")
+
+### Combine Plots
+forest_RR_plots <- (forest_RR_strength / forest_RR_hypertrophy) + 
+  plot_annotation(tag_levels = "A")
+
+save(forest_RR_plots, file = "plots/forest_RR_plots")
+
+forest_RR_plots
+
+ggsave("plots/forest_RR_plots.tiff", width = 10, height = 10, device = "tiff", dpi = 300)
 
 
 ###### Comparison of variance of change between RT and CON ######
@@ -296,7 +460,7 @@ ggsave("plots/SMD_plots.tiff", width = 10, height = 10, device = "tiff", dpi = 3
 Data_SDir <- Data %>%
   filter(!is.na(RT_delta_sd) | !is.na(CON_delta_sd) | CON_delta_sd == 0) %>%
   mutate(SDir = sqrt(pmax(0, RT_delta_sd^2 - CON_delta_sd^2)),
-         SDir_se = sqrt(2*((RT_delta_sd^4)/(RT_n-1)+(CON_delta_sd^4)/(CON_n-1)))) %>%
+         SDir_se = sqrt(2*(((RT_delta_sd^4)/(RT_n-1))+((CON_delta_sd^4)/(CON_n-1))))) %>%
   filter(!is.na(SDir))
 
 ### Strength
@@ -305,7 +469,7 @@ Data_SDir_strength <- Data_SDir %>%
 
 MultiLevelModel_SDir_strength <- rma.mv(SDir, V=SDir_se^2, data=Data_SDir_strength,
                                          slab=paste(label),
-                                         random = list(~ 1 | study, ~ 1 | group), method="REML",
+                                         random = list(~ 1 | study, ~ 1 | arm), method="REML",
                                          control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_SDir_strength, file = "models/MultiLevelModel_SDir_strength")
@@ -322,13 +486,61 @@ RobuEstMultiLevelModel_SDir_strength <- robust(MultiLevelModel_SDir_strength, Da
 
 save(RobuEstMultiLevelModel_SDir_strength, file = "models/RobuEstMultiLevelModel_SDir_strength")
 
+### Caterpillar plot 
+
+# Overall estimate
+diamond_SDir_strength <- data.frame(x = c(RobuEstMultiLevelModel_SDir_strength$b[1] + (RobuEstMultiLevelModel_SDir_strength$se*1.96),
+                                           RobuEstMultiLevelModel_SDir_strength$b[1],
+                                           RobuEstMultiLevelModel_SDir_strength$b[1] - (RobuEstMultiLevelModel_SDir_strength$se*1.96),
+                                           RobuEstMultiLevelModel_SDir_strength$b[1]),
+                                     y = c(-15,-25,-15,-5))
+
+# Prediction interval
+PI_SDir_strength <- as.data.frame(predict(RobuEstMultiLevelModel_SDir_strength))
+
+# I2 labels
+I2_SDir_strength_lab <- data.frame(level = c("study", "arm"),
+                                    I2 = I2bw_SDir_strength) %>%
+  pivot_wider(names_from = "level", values_from = "I2")
+
+# Plot
+forest_SDir_strength <- Data_SDir_strength %>% 
+  mutate(es = factor(es, levels = es[order(SDir)])) %>%
+  ggplot(aes(x=SDir, y=es)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_point(size=0.5, alpha=0.25) +
+  geom_linerange(aes(xmin = SDir - (SDir_se*1.96), xmax = SDir + (SDir_se*1.96)), alpha=0.25) +
+  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
+  geom_text(data = mutate_if(PI_SDir_strength,
+                             is.numeric, round, 2),
+            aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
+                x = 500000, y = 110), hjust = "centre", size = 3) +
+  geom_text(data = PI_SDir_strength,
+            aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
+                x = 500000, y = 90), hjust = "centre", size = 3) +
+  geom_text(data = I2_SDir_strength_lab,
+            aes(label = glue::glue("I Squared [Study = {round(study,1)}%; Arm = {round(arm,1)}%]"),
+                x = 500000, y = 70), hjust = "centre", size = 3) +
+  geom_segment(data = PI_SDir_strength, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub), 
+               arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
+  geom_polygon(data=diamond_SDir_strength, aes(x=x,y=y)) +
+  labs(y = "",
+       x = "Standard Deviation for Individual Responses (Positive Values Favour Resistance Training)",
+       title = "Strength Outcomes") +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank())
+
+save(forest_SDir_strength, file = "plots/forest_SDir_strength")
+
 ### Hypertrophy
 Data_SDir_hypertrophy <- Data_SDir %>% 
   filter(outcome == "hypertrophy")
 
 MultiLevelModel_SDir_hypertrophy <- rma.mv(SDir, V=SDir_se^2, data=Data_SDir_hypertrophy,
                                             slab=paste(label),
-                                            random = list(~ 1 | study, ~ 1 | group), method="REML",
+                                            random = list(~ 1 | study, ~ 1 | arm), method="REML",
                                             control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_SDir_hypertrophy, file = "models/MultiLevelModel_SDir_hypertrophy")
@@ -345,6 +557,65 @@ RobuEstMultiLevelModel_SDir_hypertrophy <- robust(MultiLevelModel_SDir_hypertrop
 
 save(RobuEstMultiLevelModel_SDir_hypertrophy, file = "models/RobuEstMultiLevelModel_SDir_hypertrophy")
 
+### Caterpillar plot 
+
+# Overall estimate
+diamond_SDir_hypertrophy <- data.frame(x = c(RobuEstMultiLevelModel_SDir_hypertrophy$b[1] + (RobuEstMultiLevelModel_SDir_hypertrophy$se*1.96),
+                                          RobuEstMultiLevelModel_SDir_hypertrophy$b[1],
+                                          RobuEstMultiLevelModel_SDir_hypertrophy$b[1] - (RobuEstMultiLevelModel_SDir_hypertrophy$se*1.96),
+                                          RobuEstMultiLevelModel_SDir_hypertrophy$b[1]),
+                                    y = c(-15,-25,-15,-5))
+
+# Prediction interval
+PI_SDir_hypertrophy <- as.data.frame(predict(RobuEstMultiLevelModel_SDir_hypertrophy))
+
+# I2 labels
+I2_SDir_hypertrophy_lab <- data.frame(level = c("study", "arm"),
+                                   I2 = I2bw_SDir_hypertrophy) %>%
+  pivot_wider(names_from = "level", values_from = "I2")
+
+# Plot
+forest_SDir_hypertrophy <- Data_SDir_hypertrophy %>% 
+  mutate(es = factor(es, levels = es[order(SDir)])) %>%
+  ggplot(aes(x=SDir, y=es)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_point(size=0.5, alpha=0.25) +
+  geom_linerange(aes(xmin = SDir - (SDir_se*1.96), xmax = SDir + (SDir_se*1.96)), alpha=0.25) +
+  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
+  geom_text(data = mutate_if(PI_SDir_hypertrophy,
+                             is.numeric, round, 2),
+            aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
+                x = 4e+06, y = 110), hjust = "centre", size = 3) +
+  geom_text(data = PI_SDir_hypertrophy,
+            aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
+                x = 4e+06, y = 90), hjust = "centre", size = 3) +
+  geom_text(data = I2_SDir_hypertrophy_lab,
+            aes(label = glue::glue("I Squared [Study = {round(study,1)}%; Arm = {round(arm,1)}%]"),
+                x = 4e+06, y = 70), hjust = "centre", size = 3) +
+  geom_segment(data = PI_SDir_hypertrophy, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub), 
+               arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
+  geom_polygon(data=diamond_SDir_hypertrophy, aes(x=x,y=y)) +
+  labs(y = "",
+       x = "Standard Deviation for Individual Responses (Positive Values Favour Resistance Training)",
+       title = "Hypertrophy Outcomes") +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank())
+
+save(forest_SDir_hypertrophy, file = "plots/forest_SDir_hypertrophy")
+
+### Combine Plots
+forest_SDir_plots <- (forest_SDir_strength / forest_SDir_hypertrophy) + 
+  plot_annotation(tag_levels = "A")
+
+save(forest_SDir_plots, file = "plots/forest_SDir_plots")
+
+forest_SDir_plots
+
+ggsave("plots/forest_SDir_plots.tiff", width = 10, height = 10, device = "tiff", dpi = 300)
+
+
 ### Using the Log Variability Ratio
 Data_logVR <- escalc(measure = "VR", sd1i = RT_delta_sd, sd2i = CON_delta_sd, n1i = RT_n, n2i = CON_n, data = Data)
 Data_logVR <- Data_logVR %>% 
@@ -356,7 +627,7 @@ Data_logVR_strength <- Data_logVR %>%
 
 MultiLevelModel_logVR_strength <- rma.mv(yi, V=vi, data=Data_logVR_strength,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), method="REML",
                                          control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logVR_strength, file = "models/MultiLevelModel_logVR_strength")
@@ -373,13 +644,63 @@ RobuEstMultiLevelModel_logVR_strength <- robust(MultiLevelModel_logVR_strength, 
 
 save(RobuEstMultiLevelModel_logVR_strength, file = "models/RobuEstMultiLevelModel_logVR_strength")
 
+### Caterpillar plot 
+
+# Overall estimate
+diamond_logVR_strength <- data.frame(x = c(RobuEstMultiLevelModel_logVR_strength$b[1] + (RobuEstMultiLevelModel_logVR_strength$se*1.96),
+                                          RobuEstMultiLevelModel_logVR_strength$b[1],
+                                          RobuEstMultiLevelModel_logVR_strength$b[1] - (RobuEstMultiLevelModel_logVR_strength$se*1.96),
+                                          RobuEstMultiLevelModel_logVR_strength$b[1]),
+                                    y = c(-15,-25,-15,-5))
+
+# Prediction interval
+PI_logVR_strength <- as.data.frame(predict(RobuEstMultiLevelModel_logVR_strength))
+
+# I2 labels
+I2_logVR_strength_lab <- data.frame(level = c("study", "arm"),
+                                   I2 = I2bw_logVR_strength) %>%
+  pivot_wider(names_from = "level", values_from = "I2")
+
+# Plot
+forest_logVR_strength <- Data_logVR_strength %>% 
+  mutate(es = factor(es, levels = es[order(yi)]),
+         se = sqrt(vi)) %>%
+  ggplot(aes(x=yi, y=es)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_point(size=0.5, alpha=0.25) +
+  scale_x_continuous(limits = c(-4,6), breaks = c(-3,-2,-1,0,1,2,3,4,5,6)) +
+  geom_linerange(aes(xmin = yi - (se*1.96), xmax = yi + (se*1.96)), alpha=0.25) +
+  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
+  geom_text(data = mutate_if(PI_logVR_strength,
+                             is.numeric, round, 2),
+            aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
+                x = 4.5, y = 110), hjust = "centre", size = 3) +
+  geom_text(data = PI_logVR_strength,
+            aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
+                x = 4.5, y = 90), hjust = "centre", size = 3) +
+  geom_text(data = I2_logVR_strength_lab,
+            aes(label = glue::glue("I Squared [Study = {round(study,1)}%; Arm = {round(arm,1)}%]"),
+                x = 4.5, y = 70), hjust = "centre", size = 3) +
+  geom_segment(data = PI_logVR_strength, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub),
+               arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
+  geom_polygon(data=diamond_logVR_strength, aes(x=x,y=y)) +
+  labs(y = "",
+       x = "Log Variability Ratio (Positive Values Favour Resistance Training)",
+       title = "Strength Outcomes") +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank())
+
+save(forest_logVR_strength, file = "plots/forest_logVR_strength")
+
 ### Hypertrophy
 Data_logVR_hypertrophy <- Data_logVR %>% 
   filter(outcome == "hypertrophy")
 
 MultiLevelModel_logVR_hypertrophy <- rma.mv(yi, V=vi, data=Data_logVR_hypertrophy,
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), method="REML",
                                             control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logVR_hypertrophy, file = "models/MultiLevelModel_logVR_hypertrophy")
@@ -396,16 +717,84 @@ RobuEstMultiLevelModel_logVR_hypertrophy <- robust(MultiLevelModel_logVR_hypertr
 
 save(RobuEstMultiLevelModel_logVR_hypertrophy, file = "models/RobuEstMultiLevelModel_logVR_hypertrophy")
 
-### Combine SMD, SDir, and logVR estimates
+### Caterpillar plot 
 
-SMD_SDir_logVR <- rbind(data.frame(Outcome = "strength",
+# Overall estimate
+diamond_logVR_hypertrophy <- data.frame(x = c(RobuEstMultiLevelModel_logVR_hypertrophy$b[1] + (RobuEstMultiLevelModel_logVR_hypertrophy$se*1.96),
+                                           RobuEstMultiLevelModel_logVR_hypertrophy$b[1],
+                                           RobuEstMultiLevelModel_logVR_hypertrophy$b[1] - (RobuEstMultiLevelModel_logVR_hypertrophy$se*1.96),
+                                           RobuEstMultiLevelModel_logVR_hypertrophy$b[1]),
+                                     y = c(-15,-25,-15,-5))
+
+# Prediction interval
+PI_logVR_hypertrophy <- as.data.frame(predict(RobuEstMultiLevelModel_logVR_hypertrophy))
+
+# I2 labels
+I2_logVR_hypertrophy_lab <- data.frame(level = c("study", "arm"),
+                                    I2 = I2bw_logVR_hypertrophy) %>%
+  pivot_wider(names_from = "level", values_from = "I2")
+
+# Plot
+forest_logVR_hypertrophy <- Data_logVR_hypertrophy %>% 
+  mutate(es = factor(es, levels = es[order(yi)]),
+         se = sqrt(vi)) %>%
+  ggplot(aes(x=yi, y=es)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_point(size=0.5, alpha=0.25) +
+  scale_x_continuous(limits = c(-4,6), breaks = c(-3,-2,-1,0,1,2,3,4,5,6)) +
+  geom_linerange(aes(xmin = yi - (se*1.96), xmax = yi + (se*1.96)), alpha=0.25) +
+  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
+  geom_text(data = mutate_if(PI_logVR_hypertrophy,
+                             is.numeric, round, 2),
+            aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
+                x = 4.5, y = 110), hjust = "centre", size = 3) +
+  geom_text(data = PI_logVR_hypertrophy,
+            aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
+                x = 4.5, y = 90), hjust = "centre", size = 3) +
+  geom_text(data = I2_logVR_hypertrophy_lab,
+            aes(label = glue::glue("I Squared [Study = {round(study,1)}%; Arm = {round(arm,1)}%]"),
+                x = 4.5, y = 70), hjust = "centre", size = 3) +
+  geom_segment(data = PI_logVR_hypertrophy, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub),
+               arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
+  geom_polygon(data=diamond_logVR_hypertrophy, aes(x=x,y=y)) +
+  labs(y = "",
+       x = "Log Variability Ratio (Positive Values Favour Resistance Training)",
+       title = "Hypertrophy Outcomes") +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank())
+
+save(forest_logVR_hypertrophy, file = "plots/forest_logVR_hypertrophy")
+
+### Combine Plots
+forest_logVR_plots <- (forest_logVR_strength / forest_logVR_hypertrophy) + 
+  plot_annotation(tag_levels = "A")
+
+save(forest_logVR_plots, file = "plots/forest_logVR_plots")
+
+forest_logVR_plots
+
+ggsave("plots/forest_logVR_plots.tiff", width = 10, height = 10, device = "tiff", dpi = 300)
+
+### Combine SMD, RR, SDir, and logVR estimates
+
+SMD_RR_SDir_logVR <- rbind(data.frame(Outcome = "strength",
                                     Model = "SMD",
                                     Moderator = "Main model",
-                                    Estimate = round(RobuEstMultiLevelModel_strength$b, 2),
-                                    Lower = round(RobuEstMultiLevelModel_strength$ci.lb, 2),
-                                    Upper = round(RobuEstMultiLevelModel_strength$ci.ub, 2),
-                                    `I2 study` = round(I2bw_strength, 2)[1],
-                                    `I2 group` = round(I2bw_strength, 2)[2]),
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_strength$b, 2),
+                                    Lower = round(RobuEstMultiLevelModel_SMD_strength$ci.lb, 2),
+                                    Upper = round(RobuEstMultiLevelModel_SMD_strength$ci.ub, 2),
+                                    `I2 study` = round(I2bw_SMD_strength, 2)[1],
+                                    `I2 arm` = round(I2bw_SMD_strength, 2)[2]),
+                        data.frame(Outcome = "strength",
+                                   Model = "RR",
+                                   Moderator = "Main model",
+                                   Estimate = round((exp(RobuEstMultiLevelModel_RR_strength$b)-1)*100, 2),
+                                   Lower = round((exp(RobuEstMultiLevelModel_RR_strength$ci.lb)-1)*100, 2),
+                                   Upper = round((exp(RobuEstMultiLevelModel_RR_strength$ci.ub)-1)*100, 2),
+                                   `I2 study` = round(I2bw_RR_strength, 2)[1],
+                                   `I2 arm` = round(I2bw_RR_strength, 2)[2]),
                         data.frame(Outcome = "strength",
                                    Model = "SDir",
                                    Moderator = "Main model",
@@ -413,7 +802,7 @@ SMD_SDir_logVR <- rbind(data.frame(Outcome = "strength",
                                    Lower = round(RobuEstMultiLevelModel_SDir_strength$ci.lb, 2),
                                    Upper = round(RobuEstMultiLevelModel_SDir_strength$ci.ub, 2),
                                    `I2 study` = round(I2bw_SDir_strength, 2)[1],
-                                   `I2 group` = round(I2bw_SDir_strength, 2)[2]),
+                                   `I2 arm` = round(I2bw_SDir_strength, 2)[2]),
                         data.frame(Outcome = "strength",
                                    Model = "logVR",
                                    Moderator = "Main model",
@@ -421,15 +810,23 @@ SMD_SDir_logVR <- rbind(data.frame(Outcome = "strength",
                                    Lower = round(RobuEstMultiLevelModel_logVR_strength$ci.lb, 2),
                                    Upper = round(RobuEstMultiLevelModel_logVR_strength$ci.ub, 2),
                                    `I2 study` = round(I2bw_logVR_strength, 2)[1],
-                                   `I2 group` = round(I2bw_logVR_strength, 2)[2]),
+                                   `I2 arm` = round(I2bw_logVR_strength, 2)[2]),
                         data.frame(Outcome = "hypertrophy",
                                    Model = "SMD",
                                    Moderator = "Main model",
-                                   Estimate = round(RobuEstMultiLevelModel_hypertrophy$b, 2),
-                                   Lower = round(RobuEstMultiLevelModel_hypertrophy$ci.lb, 2),
-                                   Upper = round(RobuEstMultiLevelModel_hypertrophy$ci.ub, 2),
-                                   `I2 study` = round(I2bw_hypertrophy, 2)[1],
-                                   `I2 group` = round(I2bw_hypertrophy, 2)[2]),
+                                   Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy$b, 2),
+                                   Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy$ci.lb, 2),
+                                   Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy$ci.ub, 2),
+                                   `I2 study` = round(I2bw_SMD_hypertrophy, 2)[1],
+                                   `I2 arm` = round(I2bw_SMD_hypertrophy, 2)[2]),
+                        data.frame(Outcome = "hypertrophy",
+                                   Model = "RR",
+                                   Moderator = "Main model",
+                                   Estimate = round((exp(RobuEstMultiLevelModel_RR_hypertrophy$b)-1)*100, 2),
+                                   Lower = round((exp(RobuEstMultiLevelModel_RR_hypertrophy$ci.lb)-1)*100, 2),
+                                   Upper = round((exp(RobuEstMultiLevelModel_RR_hypertrophy$ci.ub)-1)*100, 2),
+                                   `I2 study` = round(I2bw_RR_hypertrophy, 2)[1],
+                                   `I2 arm` = round(I2bw_RR_hypertrophy, 2)[2]),
                         data.frame(Outcome = "hypertrophy",
                                    Model = "SDir",
                                    Moderator = "Main model",
@@ -437,7 +834,7 @@ SMD_SDir_logVR <- rbind(data.frame(Outcome = "strength",
                                    Lower = round(RobuEstMultiLevelModel_SDir_hypertrophy$ci.lb, 2),
                                    Upper = round(RobuEstMultiLevelModel_SDir_hypertrophy$ci.ub, 2),
                                    `I2 study` = round(I2bw_SDir_hypertrophy, 2)[1],
-                                   `I2 group` = round(I2bw_SDir_hypertrophy, 2)[2]),
+                                   `I2 arm` = round(I2bw_SDir_hypertrophy, 2)[2]),
                         data.frame(Outcome = "hypertrophy",
                                    Model = "logVR",
                                    Moderator = "Main model",
@@ -445,43 +842,43 @@ SMD_SDir_logVR <- rbind(data.frame(Outcome = "strength",
                                    Lower = round(RobuEstMultiLevelModel_logVR_hypertrophy$ci.lb, 2),
                                    Upper = round(RobuEstMultiLevelModel_logVR_hypertrophy$ci.ub, 2),
                                    `I2 study` = round(I2bw_logVR_hypertrophy, 2)[1],
-                                   `I2 group` = round(I2bw_logVR_hypertrophy, 2)[2])
+                                   `I2 arm` = round(I2bw_logVR_hypertrophy, 2)[2])
 )
 
-save(SMD_SDir_logVR, file = "models/SMD_SDir_logVR")
+save(SMD_RR_SDir_logVR, file = "models/SMD_RR_SDir_logVR")
 
 ###### Section - Mean-variance relationships in muscular strength, endurance, and hypertrophy
 ### We'll look at just the baseline strength data from the Polito et al. data
 Data_long_pre_m <- Data %>%
-  select(study, group, es, RT_n, CON_n, RT_pre_m, CON_pre_m, outcome) %>%
+  select(study, arm, es, RT_n, CON_n, RT_pre_m, CON_pre_m, outcome) %>%
   pivot_longer(c(RT_pre_m, CON_pre_m),
-                   names_to = "key",
+                   names_to = "group",
                    values_to = "mean")
 
-Data_long_pre_m$key <- recode(Data_long_pre_m$key, RT_pre_m = "RT", CON_pre_m = "CON")
+Data_long_pre_m$group <- recode(Data_long_pre_m$group, RT_pre_m = "RT", CON_pre_m = "CON")
 
 Data_long_pre_sd <- Data %>%
-  select(study, group, es, RT_n, CON_n, RT_pre_sd, CON_pre_sd, outcome) %>%
+  select(study, arm, es, RT_n, CON_n, RT_pre_sd, CON_pre_sd, outcome) %>%
   pivot_longer(c(RT_pre_sd, CON_pre_sd),
-                   names_to = "key",
+                   names_to = "group",
                    values_to = "sd")
 
-Data_long_pre_sd$key <- recode(Data_long_pre_sd$key, RT_pre_sd = "RT", CON_pre_sd = "CON")
+Data_long_pre_sd$group <- recode(Data_long_pre_sd$group, RT_pre_sd = "RT", CON_pre_sd = "CON")
 
 Data_long_pre <- cbind(Data_long_pre_m, sd = Data_long_pre_sd$sd) 
 
 Data_long_pre_RT <- Data_long_pre %>%
-  filter(key == "RT") %>%
+  filter(group == "RT") %>%
   mutate(n = RT_n,
-         group = as.factor(unclass(factor(unlist(group))))) %>%
-  select(study, group, es, outcome, key, mean, sd, n)
+         arm = as.factor(unclass(factor(unlist(arm))))) %>%
+  select(study, arm, es, outcome, group, mean, sd, n)
 
 Data_long_pre_CON <- Data_long_pre %>%
-  filter(key == "CON") %>%
+  filter(group == "CON") %>%
   distinct() %>%
   mutate(n = CON_n,
-         group = as.factor(unclass(factor(unlist(group)))+length(unique(Data_long_pre_RT$group)))) %>%
-  select(study, group, es, outcome, key, mean, sd, n)
+         arm = as.factor(unclass(factor(unlist(arm)))+length(unique(Data_long_pre_RT$arm)))) %>%
+  select(study, arm, es, outcome, group, mean, sd, n)
 
 Data_long_pre <- rbind(Data_long_pre_RT, Data_long_pre_CON)
 
@@ -539,25 +936,93 @@ mean_variance_pre_plots
 
 ggsave("plots/mean_variance_pre_plots.tiff", width = 10, height = 7.5, device = "tiff", dpi = 300)
 
+### Comparing a range of models
+
+### Fitting a random intercept only mixed effects model for mean-variance
+# We will include the outcome type as a fixed moderator with random intercepts for both study and arm 
+
+MultiLevelModel_ri__log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
+                                                random = list(~ 1 | study, ~ 1 | arm),
+                                                mods = ~ log(mean) + outcome,
+                                                method="REML",
+                                                # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_ri__log_mean_variance, file = "models/MultiLevelModel_ri__log_mean_variance")
+
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_ri__log_mean_variance <- robust(MultiLevelModel_ri__log_mean_variance, Data_long_pre$study)
+
+save(RobuEstMultiLevelModel_ri__log_mean_variance, file = "models/RobuEstMultiLevelModel_ri__log_mean_variance")
 
 ### Fitting a random slope mixed effects model for mean-variance
-# We will include the outcome type as a moderator with random slopes 
-# Then the model is sort of similar to the one we'll use for change scores below to introduce it
+# We will include the outcome type as a fixed moderator with random slopes for study 
 
-MultiLevelModel_log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
-                                                random = list(~ outcome | study, ~ outcome | group), struct = "HCS",
+MultiLevelModel_rs_study__log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
+                                                     random = list(~ outcome | study, ~ 1 | arm), struct = "GEN",
+                                                     mods = ~ log(mean) + outcome,
+                                                     method="REML",
+                                                     # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_rs_study__log_mean_variance, file = "models/MultiLevelModel_rs_study__log_mean_variance")
+
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_rs_study__log_mean_variance <- robust(MultiLevelModel_rs_study__log_mean_variance, Data_long_pre$study)
+
+save(RobuEstMultiLevelModel_rs_study__log_mean_variance, file = "models/RobuEstMultiLevelModel_rs_study__log_mean_variance")
+
+
+
+### Fitting a random slope mixed effects model for mean-variance
+# We will include the outcome type as a fixed moderator with random slopes for both study and arm 
+
+MultiLevelModel_rs_both__log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
+                                                random = list(~ outcome | study, ~ outcome | arm), struct = "GEN",
                                                 mods = ~ log(mean) + outcome,
                                                 method="REML",
                                                 # control=list(optimizer="optim", optmethod="Nelder-Mead")
                                             )
 
-save(MultiLevelModel_log_mean_variance, file = "models/MultiLevelModel_log_mean_variance")
+save(MultiLevelModel_rs_both__log_mean_variance, file = "models/MultiLevelModel_rs_both__log_mean_variance")
 
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_log_mean_variance <- robust(MultiLevelModel_log_mean_variance, Data_long_pre$study)
+RobuEstMultiLevelModel_rs_both__log_mean_variance <- robust(MultiLevelModel_rs_both__log_mean_variance, Data_long_pre$study)
 
-save(RobuEstMultiLevelModel_log_mean_variance, file = "models/RobuEstMultiLevelModel_log_mean_variance")
+save(RobuEstMultiLevelModel_rs_both__log_mean_variance, file = "models/RobuEstMultiLevelModel_rs_both__log_mean_variance")
+
+### Compare all three models
+outcome_ri_rs_study <- data.frame(anova(RobuEstMultiLevelModel_ri__log_mean_variance,
+                                        RobuEstMultiLevelModel_rs_study__log_mean_variance))
+
+outcome_rs_study_rs_both <- data.frame(anova(RobuEstMultiLevelModel_rs_study__log_mean_variance,
+      RobuEstMultiLevelModel_rs_both__log_mean_variance)) 
+
+compare_outcome_models <- rbind(outcome_rs_study_rs_both, outcome_ri_rs_study[2,])
+
+rownames(compare_outcome_models) <- c("+ Random Slope (Study & Arm)", "+ Random Slope (Study)", "Random Intercept")
+
+knitr::kable(
+  compare_outcome_models,
+  caption = "Comparison of meta-regression models of variance~mean with outcome (strength vs hypertrophy) as a predictor (each compared to the next most complex model)",
+  ) %>%
+  footnote(general = c("df = degrees of freedom; ", 
+                       "AIC = Akaike Information Criterion; ", 
+                       "BIC = Bayesian Information Criterion; ",
+                       "AICc = Second-order Akaike Information Criterion; ",
+                       "logLik = Log-Likelihood; ",
+                       "LRT = Log-Likelihood Ratio Test; ",
+                       "QE = Test statistic for heterogeneity of full model")
+  ) %>%
+  row_spec(0, bold = TRUE) %>%
+  kable_classic(full_width = FALSE) %>%
+  kable_styling() %>%
+  save_kable("models/compare_outcome_models.html")
+
+webshot("models/compare_outcome_models.html", "models/compare_outcome_models.pdf")
 
 ### Meta-analytic scatter plot
 
@@ -565,9 +1030,9 @@ save(RobuEstMultiLevelModel_log_mean_variance, file = "models/RobuEstMultiLevelM
 Data_long_pre <- Data_long_pre %>%
   filter(!is.na(SD_log))
 
-Data_long_pre <- cbind(Data_long_pre, pred = predict(RobuEstMultiLevelModel_log_mean_variance)$pred,
-                      ci.lb =  predict(RobuEstMultiLevelModel_log_mean_variance)$ci.lb,
-                      ci.ub =  predict(RobuEstMultiLevelModel_log_mean_variance)$ci.ub) %>%
+Data_long_pre <- cbind(Data_long_pre, pred = predict(RobuEstMultiLevelModel_ri__log_mean_variance)$pred,
+                      ci.lb =  predict(RobuEstMultiLevelModel_ri__log_mean_variance)$ci.lb,
+                      ci.ub =  predict(RobuEstMultiLevelModel_ri__log_mean_variance)$ci.ub) %>%
   mutate(wi = 1/sqrt(SD_log_vi),
          size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi))) 
 
@@ -602,35 +1067,35 @@ Data$CON_delta_m <- replmiss(Data$CON_delta_m, with(Data, CON_post_m - CON_pre_m
 
 # First, we check to see what the relationship between mean and variance for change scores looks like
 Data_long_m <- Data %>%
-  select(study, group, es, RT_n, CON_n, RT_delta_m, CON_delta_m, outcome) %>%
+  select(study, arm, es, RT_n, CON_n, RT_delta_m, CON_delta_m, outcome) %>%
   pivot_longer(c(RT_delta_m, CON_delta_m),
-               names_to = "key",
+               names_to = "group",
                values_to = "mean")
 
-Data_long_m$key <- recode(Data_long_m$key, RT_delta_m = "RT", CON_delta_m = "CON")
+Data_long_m$group <- recode(Data_long_m$group, RT_delta_m = "RT", CON_delta_m = "CON")
 
 Data_long_sd <- Data %>%
-  select(study, group, es, RT_n, CON_n, RT_delta_sd, CON_delta_sd, outcome) %>%
+  select(study, arm, es, RT_n, CON_n, RT_delta_sd, CON_delta_sd, outcome) %>%
   pivot_longer(c(RT_delta_sd, CON_delta_sd),
-               names_to = "key",
+               names_to = "group",
                values_to = "sd")
 
-Data_long_sd$key <- recode(Data_long_sd$key, RT_delta_sd = "RT", CON_delta_sd = "CON")
+Data_long_sd$group <- recode(Data_long_sd$group, RT_delta_sd = "RT", CON_delta_sd = "CON")
 
 Data_long <- cbind(Data_long_m, sd = Data_long_sd$sd) 
 
 Data_long_RT <- Data_long %>%
-  filter(key == "RT") %>%
+  filter(group == "RT") %>%
   mutate(n = RT_n,
-         group = as.factor(unclass(factor(unlist(group))))) %>%
-  select(study, group, es, outcome, key, mean, sd, n)
+         arm = as.factor(unclass(factor(unlist(arm))))) %>%
+  select(study, arm, es, outcome, group, mean, sd, n)
 
 Data_long_CON <- Data_long %>%
-  filter(key == "CON") %>%
+  filter(group == "CON") %>%
   distinct() %>%
   mutate(n = CON_n,
-         group = as.factor(unclass(factor(unlist(group)))+length(unique(Data_long_RT$group)))) %>%
-  select(study, group, es, outcome, key, mean, sd, n)
+         arm = as.factor(unclass(factor(unlist(arm)))+length(unique(Data_long_RT$arm)))) %>%
+  select(study, arm, es, outcome, group, mean, sd, n)
 
 Data_long <- rbind(Data_long_RT, Data_long_CON)
 
@@ -643,11 +1108,11 @@ m_sd_strength <- ggplot(subset(Data_long, outcome == "strength"), aes(x=mean, y=
   geom_abline(intercept = 0, slope = 1, linetype = 2, alpha = 0.1) +
   geom_vline(aes(xintercept = 0), alpha = 0.1, lty = "dashed") +
   geom_hline(aes(yintercept = 0), alpha = 0.1, lty = "dashed") +
-  geom_point(aes(x=mean, y=sd, color = key), alpha = 0.2) +
-  scale_fill_manual("Condition", values = alpha(c("Black", "#E69F00"),0.5)) +
-  scale_color_manual("Condition", values = alpha(c("Black", "#E69F00"),0.5)) +
+  geom_point(aes(x=mean, y=sd, color = group), alpha = 0.2) +
+  scale_fill_manual("Group", values = alpha(c("Black", "#E69F00"),0.5)) +
+  scale_color_manual("Group", values = alpha(c("Black", "#E69F00"),0.5)) +
   scale_y_continuous(limits = c(0,1000)) +
-  labs(x = "Mean Change Score", y = "Standard Deviation of the Change Score", color = "Condition") +
+  labs(x = "Mean Change Score", y = "Standard Deviation of the Change Score", color = "Group") +
   guides(fill = "none") +
   theme_classic() +
   ggtitle("Strength Outcomes")
@@ -656,10 +1121,10 @@ m_sd_hypertrophy <- ggplot(subset(Data_long, outcome == "hypertrophy"), aes(x=me
   geom_abline(intercept = 0, slope = 1, linetype = 2, alpha = 0.1) +
   geom_vline(aes(xintercept = 0), alpha = 0.1, lty = "dashed") +
   geom_hline(aes(yintercept = 0), alpha = 0.1, lty = "dashed") +
-  geom_point(aes(x=mean, y=sd, color = key), alpha = 0.2) +
-  scale_fill_manual("Condition", values = alpha(c("Black", "#E69F00"),0.5)) +
-  scale_color_manual("Condition", values = alpha(c("Black", "#E69F00"),0.5)) +
-  labs(x = "Mean Change Score", y = "Standard Deviation of the Change Score", color = "Condition") +
+  geom_point(aes(x=mean, y=sd, color = group), alpha = 0.2) +
+  scale_fill_manual("Group", values = alpha(c("Black", "#E69F00"),0.5)) +
+  scale_color_manual("Group", values = alpha(c("Black", "#E69F00"),0.5)) +
+  labs(x = "Mean Change Score", y = "Standard Deviation of the Change Score", color = "Group") +
   guides(fill = "none") +
   theme_classic() +
   ggtitle("Hypertrophy Outcomes")
@@ -674,10 +1139,10 @@ m_sd_strength_log <- ggplot(subset(Data_long, outcome == "strength"), aes(x=log(
   geom_abline(intercept = 0, slope = 1, linetype = 2, alpha = 0.1) +
   geom_vline(aes(xintercept = 1), alpha = 0.1, lty = "dashed") +
   geom_hline(aes(yintercept = 1), alpha = 0.1, lty = "dashed") +
-  geom_point(aes(x=log(mean), y=SD_log, color = key), alpha = 0.2) +
-  scale_fill_manual("Condition", values = alpha(c("Black", "#E69F00"),0.5)) +
-  scale_color_manual("Condition", values = alpha(c("Black", "#E69F00"),0.5)) +
-  labs(x = "Log Mean Change Score", y = "Log Standard Deviation of the Change Score", color = "Condition") +
+  geom_point(aes(x=log(mean), y=SD_log, color = group), alpha = 0.2) +
+  scale_fill_manual("Group", values = alpha(c("Black", "#E69F00"),0.5)) +
+  scale_color_manual("Group", values = alpha(c("Black", "#E69F00"),0.5)) +
+  labs(x = "Log Mean Change Score", y = "Log Standard Deviation of the Change Score", color = "Group") +
   guides(fill = "none") +
   theme_classic() 
 
@@ -685,10 +1150,10 @@ m_sd_hypertrophy_log <- ggplot(subset(Data_long, outcome == "hypertrophy"), aes(
   geom_abline(intercept = 0, slope = 1, linetype = 2, alpha = 0.1) +
   geom_vline(aes(xintercept = 1), alpha = 0.1, lty = "dashed") +
   geom_hline(aes(yintercept = 1), alpha = 0.1, lty = "dashed") +
-  geom_point(aes(x=log(mean), y=SD_log, color = key), alpha = 0.2) +
-  scale_fill_manual("Condition", values = alpha(c("Black", "#E69F00"),0.5)) +
-  scale_color_manual("Condition", values = alpha(c("Black", "#E69F00"),0.5)) +
-  labs(x = "Log Mean Change Score", y = "Log Standard Deviation of the Change Score", color = "Condition") +
+  geom_point(aes(x=log(mean), y=SD_log, color = group), alpha = 0.2) +
+  scale_fill_manual("Group", values = alpha(c("Black", "#E69F00"),0.5)) +
+  scale_color_manual("Group", values = alpha(c("Black", "#E69F00"),0.5)) +
+  labs(x = "Log Mean Change Score", y = "Log Standard Deviation of the Change Score", color = "Group") +
   guides(fill = "none") +
   theme_classic() 
 
@@ -724,7 +1189,7 @@ Data_logCVR_strength <- Data_logCVR %>%
 
 MultiLevelModel_logCVR_strength <- rma.mv(yi, V=vi, data=Data_logCVR_strength,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength, file = "models/MultiLevelModel_logCVR_strength")
@@ -741,13 +1206,63 @@ RobuEstMultiLevelModel_logCVR_strength <- robust(MultiLevelModel_logCVR_strength
 
 save(RobuEstMultiLevelModel_logCVR_strength, file = "models/RobuEstMultiLevelModel_logCVR_strength")
 
+### Caterpillar plot 
+
+# Overall estimate
+diamond_logCVR_strength <- data.frame(x = c(RobuEstMultiLevelModel_logCVR_strength$b[1] + (RobuEstMultiLevelModel_logCVR_strength$se*1.96),
+                                           RobuEstMultiLevelModel_logCVR_strength$b[1],
+                                           RobuEstMultiLevelModel_logCVR_strength$b[1] - (RobuEstMultiLevelModel_logCVR_strength$se*1.96),
+                                           RobuEstMultiLevelModel_logCVR_strength$b[1]),
+                                     y = c(-15,-25,-15,-5))
+
+# Prediction interval
+PI_logCVR_strength <- as.data.frame(predict(RobuEstMultiLevelModel_logCVR_strength))
+
+# I2 labels
+I2_logCVR_strength_lab <- data.frame(level = c("study", "arm"),
+                                    I2 = I2bw_logCVR_strength) %>%
+  pivot_wider(names_from = "level", values_from = "I2")
+
+# Plot
+forest_logCVR_strength <- Data_logCVR_strength %>% 
+  mutate(es = factor(es, levels = es[order(yi)]),
+         se = sqrt(vi)) %>%
+  ggplot(aes(x=yi, y=es)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_point(size=0.5, alpha=0.25) +
+  # scale_x_continuous(limits = c(-4,6), breaks = c(-3,-2,-1,0,1,2,3,4,5,6)) +
+  geom_linerange(aes(xmin = yi - (se*1.96), xmax = yi + (se*1.96)), alpha=0.25) +
+  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
+  geom_text(data = mutate_if(PI_logCVR_strength,
+                             is.numeric, round, 2),
+            aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
+                x = 60, y = 110), hjust = "centre", size = 3) +
+  geom_text(data = PI_logCVR_strength,
+            aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
+                x = 60, y = 90), hjust = "centre", size = 3) +
+  geom_text(data = I2_logCVR_strength_lab,
+            aes(label = glue::glue("I Squared [Study = {round(study,1)}%; Arm = {round(arm,1)}%]"),
+                x = 60, y = 70), hjust = "centre", size = 3) +
+  geom_segment(data = PI_logCVR_strength, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub),
+               arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
+  geom_polygon(data=diamond_logCVR_strength, aes(x=x,y=y)) +
+  labs(y = "",
+       x = "Log Coefficient of Variability Ratio (Positive Values Favour Resistance Training)",
+       title = "Strength Outcomes") +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank())
+
+save(forest_logCVR_strength, file = "plots/forest_logCVR_strength")
+
 ### Hypertrophy
 Data_logCVR_hypertrophy <- Data_logCVR %>% 
   filter(outcome == "hypertrophy")
 
 MultiLevelModel_logCVR_hypertrophy <- rma.mv(yi, V=vi, data=Data_logCVR_hypertrophy,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy, file = "models/MultiLevelModel_logCVR_hypertrophy")
@@ -763,6 +1278,72 @@ I2bw_logCVR_hypertrophy <- 100 * MultiLevelModel_logCVR_hypertrophy$sigma2 / (su
 RobuEstMultiLevelModel_logCVR_hypertrophy <- robust(MultiLevelModel_logCVR_hypertrophy, Data_logCVR_hypertrophy$study)
 
 save(RobuEstMultiLevelModel_logCVR_hypertrophy, file = "models/RobuEstMultiLevelModel_logCVR_hypertrophy")
+
+### Caterpillar plot 
+
+# Overall estimate
+diamond_logCVR_hypertrophy <- data.frame(x = c(RobuEstMultiLevelModel_logCVR_hypertrophy$b[1] + (RobuEstMultiLevelModel_logCVR_hypertrophy$se*1.96),
+                                            RobuEstMultiLevelModel_logCVR_hypertrophy$b[1],
+                                            RobuEstMultiLevelModel_logCVR_hypertrophy$b[1] - (RobuEstMultiLevelModel_logCVR_hypertrophy$se*1.96),
+                                            RobuEstMultiLevelModel_logCVR_hypertrophy$b[1]),
+                                      y = c(-15,-25,-15,-5))
+
+# Prediction interval
+PI_logCVR_hypertrophy <- as.data.frame(predict(RobuEstMultiLevelModel_logCVR_hypertrophy))
+
+# I2 labels
+I2_logCVR_hypertrophy_lab <- data.frame(level = c("study", "arm"),
+                                     I2 = I2bw_logCVR_hypertrophy) %>%
+  pivot_wider(names_from = "level", values_from = "I2")
+
+# Plot
+forest_logCVR_hypertrophy <- Data_logCVR_hypertrophy %>% 
+  mutate(es = factor(es, levels = es[order(yi)]),
+         se = sqrt(vi)) %>%
+  ggplot(aes(x=yi, y=es)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_point(size=0.5, alpha=0.25) +
+  # scale_x_continuous(limits = c(-4,6), breaks = c(-3,-2,-1,0,1,2,3,4,5,6)) +
+  geom_linerange(aes(xmin = yi - (se*1.96), xmax = yi + (se*1.96)), alpha=0.25) +
+  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
+  geom_text(data = mutate_if(PI_logCVR_hypertrophy,
+                             is.numeric, round, 2),
+            aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
+                x = 120, y = 110), hjust = "centre", size = 3) +
+  geom_text(data = PI_logCVR_hypertrophy,
+            aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
+                x = 120, y = 90), hjust = "centre", size = 3) +
+  geom_text(data = I2_logCVR_hypertrophy_lab,
+            aes(label = glue::glue("I Squared [Study = {round(study,1)}%; Arm = {round(arm,1)}%]"),
+                x = 120, y = 70), hjust = "centre", size = 3) +
+  geom_segment(data = PI_logCVR_hypertrophy, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub),
+               arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
+  geom_polygon(data=diamond_logCVR_hypertrophy, aes(x=x,y=y)) +
+  labs(y = "",
+       x = "Log Coefficient of Variability Ratio (Positive Values Favour Resistance Training)",
+       title = "Hypertrophy Outcomes") +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank())
+
+save(forest_logCVR_hypertrophy, file = "plots/forest_logCVR_hypertrophy")
+
+### Combine Plots
+forest_logCVR_plots <- (forest_logCVR_strength / forest_logCVR_hypertrophy) + 
+  plot_annotation(tag_levels = "A")
+
+save(forest_logCVR_plots, file = "plots/forest_logCVR_plots")
+
+forest_logCVR_plots
+
+ggsave("plots/forest_logCVR_plots.tiff", width = 10, height = 10, device = "tiff", dpi = 300)
+
+
+
+
+
+
 
 
 ### Let's fit some additional models though addressing some of the possible limitations of log CVR
@@ -782,24 +1363,98 @@ Data_long_strength <- Data_long %>%
                !is.infinite(mean_log)) %>%
     filter(outcome == "strength")
 
-MultiLevelModel_log_mean_mod_strength <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
-                                          random = list(~ key | study, ~ key | group), struct = "HCS",
-                                          mods = ~ mean_log + key,
-                                          method="REML",
-                                          control=list(optimizer="optim", optmethod="Nelder-Mead"))
+### Comparing a range of models
 
-save(MultiLevelModel_log_mean_mod_strength, file = "models/MultiLevelModel_log_mean_mod_strength")
+### Fitting a random intercept only mixed effects model for mean-variance
+# We will include the group type as a fixed moderator with random intercepts for both study and arm 
+
+MultiLevelModel_ri__log_mean_mod_strength  <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
+                                                random = list(~ 1 | study, ~ 1 | arm),
+                                                mods = ~ mean_log + group,
+                                                method="REML",
+                                                # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_ri__log_mean_mod_strength , file = "models/MultiLevelModel_ri__log_mean_mod_strength ")
 
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_log_mean_mod_strength <- robust(MultiLevelModel_log_mean_mod_strength, Data_long_strength$study)
+RobuEstMultiLevelModel_ri__log_mean_mod_strength  <- robust(MultiLevelModel_ri__log_mean_mod_strength , Data_long_strength$study)
 
-save(RobuEstMultiLevelModel_log_mean_mod_strength, file = "models/RobuEstMultiLevelModel_log_mean_mod_strength")
+save(RobuEstMultiLevelModel_ri__log_mean_mod_strength , file = "models/RobuEstMultiLevelModel_ri__log_mean_mod_strength ")
+
+### Fitting a random slope mixed effects model for mean-variance
+# We will include the group type as a fixed moderator with random slopes for study 
+
+MultiLevelModel_rs_study__log_mean_mod_strength  <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
+                                                      random = list(~ group | study, ~ 1 | arm), struct = "GEN",
+                                                      mods = ~ mean_log + group,
+                                                      method="REML",
+                                                      # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_rs_study__log_mean_mod_strength , file = "models/MultiLevelModel_rs_study__log_mean_mod_strength ")
+
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_rs_study__log_mean_mod_strength  <- robust(MultiLevelModel_rs_study__log_mean_mod_strength , Data_long_strength$study)
+
+save(RobuEstMultiLevelModel_rs_study__log_mean_mod_strength , file = "models/RobuEstMultiLevelModel_rs_study__log_mean_mod_strength ")
+
+
+
+### Fitting a random slope mixed effects model for mean-variance
+# We will include the group type as a fixed moderator with random slopes for both study and arm 
+
+MultiLevelModel_rs_both__log_mean_mod_strength  <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
+                                                     random = list(~ group | study, ~ group | arm), struct = "GEN",
+                                                     mods = ~ mean_log + group,
+                                                     method="REML",
+                                                     # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_rs_both__log_mean_mod_strength , file = "models/MultiLevelModel_rs_both__log_mean_mod_strength ")
+
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_rs_both__log_mean_mod_strength  <- robust(MultiLevelModel_rs_both__log_mean_mod_strength , Data_long_strength$study)
+
+save(RobuEstMultiLevelModel_rs_both__log_mean_mod_strength , file = "models/RobuEstMultiLevelModel_rs_both__log_mean_mod_strength ")
+
+### Compare all three models
+group_ri_rs_study <- data.frame(anova(RobuEstMultiLevelModel_ri__log_mean_mod_strength ,
+                                        RobuEstMultiLevelModel_rs_study__log_mean_mod_strength ))
+
+group_rs_study_rs_both <- data.frame(anova(RobuEstMultiLevelModel_rs_study__log_mean_mod_strength ,
+                                             RobuEstMultiLevelModel_rs_both__log_mean_mod_strength )) 
+
+compare_group_models_strength <- rbind(group_rs_study_rs_both, group_ri_rs_study[2,])
+
+rownames(compare_group_models_strength) <- c("+ Random Slope (Study & Arm)", "+ Random Slope (Study)", "Random Intercept")
+
+knitr::kable(
+  compare_group_models_strength,
+  caption = "Comparison of meta-regression models (strength outcomes) of variance~mean with group (RT vs CON) as a predictor (each compared to the next most complex model)",
+) %>%
+  footnote(general = c("df = degrees of freedom; ", 
+                       "AIC = Akaike Information Criterion; ", 
+                       "BIC = Bayesian Information Criterion; ",
+                       "AICc = Second-order Akaike Information Criterion; ",
+                       "logLik = Log-Likelihood; ",
+                       "LRT = Log-Likelihood Ratio Test; ",
+                       "QE = Test statistic for heterogeneity of full model")
+  ) %>%
+  row_spec(0, bold = TRUE) %>%
+  kable_classic(full_width = FALSE) %>%
+  kable_styling() %>%
+  save_kable("models/compare_group_models_strength.html")
+
+webshot("models/compare_group_models_strength.html", "models/compare_group_models_strength.pdf")
 
 ### Meta-analytic scatter plot
 
 # get the predicted log values
-Data_long_strength_log <- cbind(Data_long_strength, predict(RobuEstMultiLevelModel_log_mean_mod_strength)) %>%
+Data_long_strength_log <- cbind(Data_long_strength, predict(RobuEstMultiLevelModel_ri__log_mean_mod_strength )) %>%
     mutate(wi = 1/sqrt(SD_log_vi),
            size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi))) 
 
@@ -807,12 +1462,12 @@ model_m_sd_strength_log <- ggplot(Data_long_strength_log, aes(x=mean_log, y=SD_l
     geom_abline(intercept = 0, slope = 1, linetype = 2, alpha = 0.1) +
     geom_vline(aes(xintercept = 0), alpha = 0.1, lty = "dashed") +
     geom_hline(aes(yintercept = 0), alpha = 0.1, lty = "dashed") +
-    geom_point(aes(x=mean_log, y=SD_log, color = key, size = size), alpha = 0.2) +
-    geom_ribbon(aes(x=mean_log, ymax=ci.ub, ymin=ci.lb, fill = key), alpha = 0.2) +
-    geom_line(aes(x=mean_log, y=pred, color = key)) +
-    scale_fill_manual("Condition", values = alpha(c("Black", "#E69F00"),0.5)) +
-    scale_color_manual("Condition", values = alpha(c("Black", "#E69F00"),0.5)) +
-    labs(x = "Log Mean Change Score", y = "Log Standard Deviation of the Change Score", color = "Condition", shape = "", fill = "") +
+    geom_point(aes(x=mean_log, y=SD_log, color = group, size = size), alpha = 0.2) +
+    geom_ribbon(aes(x=mean_log, ymax=ci.ub, ymin=ci.lb, fill = group), alpha = 0.2) +
+    geom_line(aes(x=mean_log, y=pred, color = group)) +
+    scale_fill_manual("Group", values = alpha(c("Black", "#E69F00"),0.5)) +
+    scale_color_manual("Group", values = alpha(c("Black", "#E69F00"),0.5)) +
+    labs(x = "Log Mean Change Score", y = "Log Standard Deviation of the Change Score", color = "Group", shape = "", fill = "") +
     theme_classic() +
     ggtitle("Strength Outcomes") +
     guides(size = "none", fill = "none")
@@ -828,39 +1483,114 @@ Data_long_hypertrophy <- Data_long %>%
                !is.infinite(mean_log)) %>%
     filter(outcome == "hypertrophy")
 
-MultiLevelModel_log_mean_mod_hypertrophy <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
-                                             random = list(~ key | study, ~ key | group), struct = "HCS",
-                                             mods = ~ mean_log + key,
-                                          method="REML",
-                                          control=list(optimizer="optim", optmethod="Nelder-Mead"))
+### Comparing a range of models
 
-save(MultiLevelModel_log_mean_mod_hypertrophy, file = "models/MultiLevelModel_log_mean_mod_hypertrophy")
+### Fitting a random intercept only mixed effects model for mean-variance
+# We will include the group type as a fixed moderator with random intercepts for both study and arm 
+
+MultiLevelModel_ri__log_mean_mod_hypertrophy  <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
+                                                     random = list(~ 1 | study, ~ 1 | arm),
+                                                     mods = ~ mean_log + group,
+                                                     method="REML",
+                                                     # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_ri__log_mean_mod_hypertrophy , file = "models/MultiLevelModel_ri__log_mean_mod_hypertrophy ")
+
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_log_mean_mod_hypertrophy <- robust(MultiLevelModel_log_mean_mod_hypertrophy, Data_long_hypertrophy$study)
+RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy  <- robust(MultiLevelModel_ri__log_mean_mod_hypertrophy , Data_long_hypertrophy$study)
 
-save(RobuEstMultiLevelModel_log_mean_mod_hypertrophy, file = "models/RobuEstMultiLevelModel_log_mean_mod_hypertrophy")
+save(RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy , file = "models/RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy ")
+
+### Fitting a random slope mixed effects model for mean-variance
+# We will include the group type as a fixed moderator with random slopes for study 
+
+MultiLevelModel_rs_study__log_mean_mod_hypertrophy  <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
+                                                           random = list(~ group | study, ~ 1 | arm), struct = "GEN",
+                                                           mods = ~ mean_log + group,
+                                                           method="REML",
+                                                           # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_rs_study__log_mean_mod_hypertrophy , file = "models/MultiLevelModel_rs_study__log_mean_mod_hypertrophy ")
+
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy  <- robust(MultiLevelModel_rs_study__log_mean_mod_hypertrophy , Data_long_hypertrophy$study)
+
+save(RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy , file = "models/RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy ")
+
+
+
+### Fitting a random slope mixed effects model for mean-variance
+# We will include the group type as a fixed moderator with random slopes for both study and arm 
+
+MultiLevelModel_rs_both__log_mean_mod_hypertrophy  <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
+                                                          random = list(~ group | study, ~ group | arm), struct = "GEN",
+                                                          mods = ~ mean_log + group,
+                                                          method="REML",
+                                                          # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_rs_both__log_mean_mod_hypertrophy , file = "models/MultiLevelModel_rs_both__log_mean_mod_hypertrophy ")
+
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy  <- robust(MultiLevelModel_rs_both__log_mean_mod_hypertrophy , Data_long_hypertrophy$study)
+
+save(RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy , file = "models/RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy ")
+
+### Compare all three models
+group_ri_rs_study <- data.frame(anova(RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy ,
+                                      RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy ))
+
+group_rs_study_rs_both <- data.frame(anova(RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy ,
+                                           RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy )) 
+
+compare_group_models_hypertrophy <- rbind(group_rs_study_rs_both, group_ri_rs_study[2,])
+
+rownames(compare_group_models_hypertrophy) <- c("+ Random Slope (Study & Arm)", "+ Random Slope (Study)", "Random Intercept")
+
+knitr::kable(
+  compare_group_models_hypertrophy,
+  caption = "Comparison of meta-regression models (hypertrophy outcomes) of variance~mean with group (RT vs CON) as a predictor (each compared to the next most complex model)",
+) %>%
+  footnote(general = c("df = degrees of freedom; ", 
+                       "AIC = Akaike Information Criterion; ", 
+                       "BIC = Bayesian Information Criterion; ",
+                       "AICc = Second-order Akaike Information Criterion; ",
+                       "logLik = Log-Likelihood; ",
+                       "LRT = Log-Likelihood Ratio Test; ",
+                       "QE = Test statistic for heterogeneity of full model")
+  ) %>%
+  row_spec(0, bold = TRUE) %>%
+  kable_classic(full_width = FALSE) %>%
+  kable_styling() %>%
+  save_kable("models/compare_group_models_hypertrophy.html")
+
+webshot("models/compare_group_models_hypertrophy.html", "models/compare_group_models_hypertrophy.pdf")
 
 ### Meta-analytic scatter plot
 
 # get the predicted log values
-Data_long_hypertrophy_log <- cbind(Data_long_hypertrophy, predict(RobuEstMultiLevelModel_log_mean_mod_hypertrophy)) %>%
-    mutate(wi = 1/sqrt(SD_log_vi),
-           size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi))) 
+Data_long_hypertrophy_log <- cbind(Data_long_hypertrophy, predict(RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy )) %>%
+  mutate(wi = 1/sqrt(SD_log_vi),
+         size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi))) 
 
 model_m_sd_hypertrophy_log <- ggplot(Data_long_hypertrophy_log, aes(x=mean_log, y=SD_log)) +
-    geom_abline(intercept = 0, slope = 1, linetype = 2, alpha = 0.1) +
-    geom_vline(aes(xintercept = 0), alpha = 0.1, lty = "dashed") +
-    geom_hline(aes(yintercept = 0), alpha = 0.1, lty = "dashed") +
-    geom_point(aes(x=mean_log, y=SD_log, color = key, size = size), alpha = 0.2) +
-    geom_ribbon(aes(x=mean_log, ymax=ci.ub, ymin=ci.lb, fill = key), alpha = 0.2) +
-    geom_line(aes(x=mean_log, y=pred, color = key)) +
-    scale_fill_manual("Condition", values = alpha(c("Black", "#E69F00"),0.5)) +
-    scale_color_manual("Condition", values = alpha(c("Black", "#E69F00"),0.5)) +
-    labs(x = "Log Mean Change Score", y = "Log Standard Deviation of the Change Score", color = "Condition", shape = "", fill = "") +
-    ggtitle("Hypertrophy Outcomes") +
-    theme_classic() +
-    guides(size = "none", fill = "none")
+  geom_abline(intercept = 0, slope = 1, linetype = 2, alpha = 0.1) +
+  geom_vline(aes(xintercept = 0), alpha = 0.1, lty = "dashed") +
+  geom_hline(aes(yintercept = 0), alpha = 0.1, lty = "dashed") +
+  geom_point(aes(x=mean_log, y=SD_log, color = group, size = size), alpha = 0.2) +
+  geom_ribbon(aes(x=mean_log, ymax=ci.ub, ymin=ci.lb, fill = group), alpha = 0.2) +
+  geom_line(aes(x=mean_log, y=pred, color = group)) +
+  scale_fill_manual("Group", values = alpha(c("Black", "#E69F00"),0.5)) +
+  scale_color_manual("Group", values = alpha(c("Black", "#E69F00"),0.5)) +
+  labs(x = "Log Mean Change Score", y = "Log Standard Deviation of the Change Score", color = "Group", shape = "", fill = "") +
+  theme_classic() +
+  ggtitle("Hypertrophy Outcomes") +
+  guides(size = "none", fill = "none")
 
 model_mean_variance_delta_plots <- (model_m_sd_strength_log | model_m_sd_hypertrophy_log) + 
   plot_layout(guides = 'collect') + plot_annotation(tag_levels = "A") 
@@ -871,15 +1601,12 @@ model_mean_variance_delta_plots
 
 ggsave("plots/model_mean_variance_delta_plots.tiff", width = 10, height = 5, device = "tiff", dpi = 300)
 
-
-###### Stuff for supplementary materials?
-
 ####### Summary tables for study/participant characteristics 
 
 ### Sample sizes
 sample_sizes <- Data %>%
-  select(group, RT_n, CON_n) %>%
-  group_by(group) %>%
+  select(arm, RT_n, CON_n) %>%
+  group_by(arm) %>%
   summarise(RT_n = max(RT_n), 
             CON_n = max(CON_n)) %>%
   summarise(`All` = sum(RT_n),
@@ -890,13 +1617,13 @@ sample_sizes <- Data %>%
             `Minumum CON` = min(CON_n, na.rm =TRUE),
             `Median CON` = median(CON_n, na.rm =TRUE),
             `Maximum CON` = max(CON_n, na.rm =TRUE)) %>%
-  pivot_longer(1:8, names_to = "Group", values_to = "Sample Size")
+  pivot_longer(1:8, names_to = "Arm", values_to = "Sample Size")
 
 save(sample_sizes, file = "models/sample_sizes")
 
 ### Descriptive Tables
 Data_characteristics <- Data %>% 
-  distinct(group, .keep_all = TRUE) %>%
+  distinct(arm, .keep_all = TRUE) %>%
   select(TESTEX,
          age,
          sex_._male,
@@ -950,8 +1677,9 @@ rownames(summary_table) <- NULL
 
 save(summary_table, file = "models/summary_table")
 
+###### Stuff for supplementary materials etc.
 
-###### Small study bias - for supplementary
+###### Small study bias
 
 # Most studies in our field care about detecting treatment effects, not variance
 # So we'll explore small study bias first for these across all effects
@@ -963,7 +1691,7 @@ Data_SMD <- Data_SMD %>%
 
 MultiLevelModel_all <- rma.mv(yi, V=vi, data=Data_SMD,
                                             slab=paste(label),
-                                            random = list(~ 1 | study, ~ 1 | group), method="REML")
+                                            random = list(~ 1 | study, ~ 1 | arm), method="REML")
 
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_all <- robust(MultiLevelModel_all, Data_SMD$study)
@@ -1002,47 +1730,47 @@ dev.off()
 Data_SMD_strength_TESTEX <- Data_SMD_strength %>%
   filter(!is.na(TESTEX))
 
-MultiLevelModel_strength_TESTEX <- rma.mv(yi, V=vi, data=Data_SMD_strength_TESTEX,
+MultiLevelModel_SMD_strength_TESTEX <- rma.mv(yi, V=vi, data=Data_SMD_strength_TESTEX,
                                    slab=paste(label),
-                                   random = list(~ 1 | study, ~ 1 | group), mods = ~ TESTEX, method="REML",
+                                   random = list(~ 1 | study, ~ 1 | arm), mods = ~ TESTEX, method="REML",
                                    control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_TESTEX, file = "models/MultiLevelModel_strength_TESTEX")
+save(MultiLevelModel_SMD_strength_TESTEX, file = "models/MultiLevelModel_SMD_strength_TESTEX")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_TESTEX$vi)
-X <- model.matrix(MultiLevelModel_strength_TESTEX)
+X <- model.matrix(MultiLevelModel_SMD_strength_TESTEX)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_TESTEX <- 100 * sum(MultiLevelModel_strength_TESTEX$sigma2) / (sum(MultiLevelModel_strength_TESTEX$sigma2) + (MultiLevelModel_strength_TESTEX$k-MultiLevelModel_strength_TESTEX$p)/sum(diag(P)))
-I2bw_strength_TESTEX <- 100 * MultiLevelModel_strength_TESTEX$sigma2 / (sum(MultiLevelModel_strength_TESTEX$sigma2) + (MultiLevelModel_strength_TESTEX$k-MultiLevelModel_strength_TESTEX$p)/sum(diag(P)))
+I2_strength_TESTEX <- 100 * sum(MultiLevelModel_SMD_strength_TESTEX$sigma2) / (sum(MultiLevelModel_SMD_strength_TESTEX$sigma2) + (MultiLevelModel_SMD_strength_TESTEX$k-MultiLevelModel_SMD_strength_TESTEX$p)/sum(diag(P)))
+I2bw_strength_TESTEX <- 100 * MultiLevelModel_SMD_strength_TESTEX$sigma2 / (sum(MultiLevelModel_SMD_strength_TESTEX$sigma2) + (MultiLevelModel_SMD_strength_TESTEX$k-MultiLevelModel_SMD_strength_TESTEX$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_TESTEX <- robust(MultiLevelModel_strength_TESTEX, Data_SMD_strength_TESTEX$study)
+RobuEstMultiLevelModel_SMD_strength_TESTEX <- robust(MultiLevelModel_SMD_strength_TESTEX, Data_SMD_strength_TESTEX$study)
 
-save(RobuEstMultiLevelModel_strength_TESTEX, file = "models/RobuEstMultiLevelModel_strength_TESTEX")
+save(RobuEstMultiLevelModel_SMD_strength_TESTEX, file = "models/RobuEstMultiLevelModel_SMD_strength_TESTEX")
 
 # Hypertrophy
 Data_SMD_hypertrophy_TESTEX <- Data_SMD_hypertrophy %>%
   filter(!is.na(TESTEX))
 
-MultiLevelModel_hypertrophy_TESTEX <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_TESTEX,
+MultiLevelModel_SMD_hypertrophy_TESTEX <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_TESTEX,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ TESTEX, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ TESTEX, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_TESTEX, file = "models/MultiLevelModel_hypertrophy_TESTEX")
+save(MultiLevelModel_SMD_hypertrophy_TESTEX, file = "models/MultiLevelModel_SMD_hypertrophy_TESTEX")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_TESTEX$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_TESTEX)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_TESTEX)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_TESTEX <- 100 * sum(MultiLevelModel_hypertrophy_TESTEX$sigma2) / (sum(MultiLevelModel_hypertrophy_TESTEX$sigma2) + (MultiLevelModel_hypertrophy_TESTEX$k-MultiLevelModel_hypertrophy_TESTEX$p)/sum(diag(P)))
-I2bw_hypertrophy_TESTEX <- 100 * MultiLevelModel_hypertrophy_TESTEX$sigma2 / (sum(MultiLevelModel_hypertrophy_TESTEX$sigma2) + (MultiLevelModel_hypertrophy_TESTEX$k-MultiLevelModel_hypertrophy_TESTEX$p)/sum(diag(P)))
+I2_hypertrophy_TESTEX <- 100 * sum(MultiLevelModel_SMD_hypertrophy_TESTEX$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_TESTEX$sigma2) + (MultiLevelModel_SMD_hypertrophy_TESTEX$k-MultiLevelModel_SMD_hypertrophy_TESTEX$p)/sum(diag(P)))
+I2bw_hypertrophy_TESTEX <- 100 * MultiLevelModel_SMD_hypertrophy_TESTEX$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_TESTEX$sigma2) + (MultiLevelModel_SMD_hypertrophy_TESTEX$k-MultiLevelModel_SMD_hypertrophy_TESTEX$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_TESTEX <- robust(MultiLevelModel_hypertrophy_TESTEX, Data_SMD_hypertrophy_TESTEX$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_TESTEX <- robust(MultiLevelModel_SMD_hypertrophy_TESTEX, Data_SMD_hypertrophy_TESTEX$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_TESTEX, file = "models/RobuEstMultiLevelModel_hypertrophy_TESTEX")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_TESTEX, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_TESTEX")
 
 # logCVR
 Data_logCVR_TESTEX <- Data_logCVR %>%
@@ -1051,7 +1779,7 @@ Data_logCVR_TESTEX <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_TESTEX <- rma.mv(yi, V=vi, data=subset(Data_logCVR_TESTEX, outcome == "strength"),
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ TESTEX, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ TESTEX, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_TESTEX, file = "models/MultiLevelModel_logCVR_strength_TESTEX")
@@ -1071,7 +1799,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_TESTEX, file = "models/RobuEstMultiL
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_TESTEX <- rma.mv(yi, V=vi, data=subset(Data_logCVR_TESTEX, outcome == "hypertrophy"),
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ TESTEX, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ TESTEX, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_TESTEX, file = "models/MultiLevelModel_logCVR_hypertrophy_TESTEX")
@@ -1094,47 +1822,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_TESTEX, file = "models/RobuEstMul
 Data_SMD_strength_age <- Data_SMD_strength %>%
   filter(!is.na(age))
 
-MultiLevelModel_strength_age <- rma.mv(yi, V=vi, data=Data_SMD_strength_age,
+MultiLevelModel_SMD_strength_age <- rma.mv(yi, V=vi, data=Data_SMD_strength_age,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ age, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ age, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_age, file = "models/MultiLevelModel_strength_age")
+save(MultiLevelModel_SMD_strength_age, file = "models/MultiLevelModel_SMD_strength_age")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_age$vi)
-X <- model.matrix(MultiLevelModel_strength_age)
+X <- model.matrix(MultiLevelModel_SMD_strength_age)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_age <- 100 * sum(MultiLevelModel_strength_age$sigma2) / (sum(MultiLevelModel_strength_age$sigma2) + (MultiLevelModel_strength_age$k-MultiLevelModel_strength_age$p)/sum(diag(P)))
-I2bw_strength_age <- 100 * MultiLevelModel_strength_age$sigma2 / (sum(MultiLevelModel_strength_age$sigma2) + (MultiLevelModel_strength_age$k-MultiLevelModel_strength_age$p)/sum(diag(P)))
+I2_strength_age <- 100 * sum(MultiLevelModel_SMD_strength_age$sigma2) / (sum(MultiLevelModel_SMD_strength_age$sigma2) + (MultiLevelModel_SMD_strength_age$k-MultiLevelModel_SMD_strength_age$p)/sum(diag(P)))
+I2bw_strength_age <- 100 * MultiLevelModel_SMD_strength_age$sigma2 / (sum(MultiLevelModel_SMD_strength_age$sigma2) + (MultiLevelModel_SMD_strength_age$k-MultiLevelModel_SMD_strength_age$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_age <- robust(MultiLevelModel_strength_age, Data_SMD_strength_age$study)
+RobuEstMultiLevelModel_SMD_strength_age <- robust(MultiLevelModel_SMD_strength_age, Data_SMD_strength_age$study)
 
-save(RobuEstMultiLevelModel_strength_age, file = "models/RobuEstMultiLevelModel_strength_age")
+save(RobuEstMultiLevelModel_SMD_strength_age, file = "models/RobuEstMultiLevelModel_SMD_strength_age")
 
 # Hypertrophy
 Data_SMD_hypertrophy_age <- Data_SMD_hypertrophy %>%
   filter(!is.na(age))
 
-MultiLevelModel_hypertrophy_age <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_age,
+MultiLevelModel_SMD_hypertrophy_age <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_age,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ age, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ age, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_age, file = "models/MultiLevelModel_hypertrophy_age")
+save(MultiLevelModel_SMD_hypertrophy_age, file = "models/MultiLevelModel_SMD_hypertrophy_age")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_age$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_age)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_age)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_age <- 100 * sum(MultiLevelModel_hypertrophy_age$sigma2) / (sum(MultiLevelModel_hypertrophy_age$sigma2) + (MultiLevelModel_hypertrophy_age$k-MultiLevelModel_hypertrophy_age$p)/sum(diag(P)))
-I2bw_hypertrophy_age <- 100 * MultiLevelModel_hypertrophy_age$sigma2 / (sum(MultiLevelModel_hypertrophy_age$sigma2) + (MultiLevelModel_hypertrophy_age$k-MultiLevelModel_hypertrophy_age$p)/sum(diag(P)))
+I2_hypertrophy_age <- 100 * sum(MultiLevelModel_SMD_hypertrophy_age$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_age$sigma2) + (MultiLevelModel_SMD_hypertrophy_age$k-MultiLevelModel_SMD_hypertrophy_age$p)/sum(diag(P)))
+I2bw_hypertrophy_age <- 100 * MultiLevelModel_SMD_hypertrophy_age$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_age$sigma2) + (MultiLevelModel_SMD_hypertrophy_age$k-MultiLevelModel_SMD_hypertrophy_age$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_age <- robust(MultiLevelModel_hypertrophy_age, Data_SMD_hypertrophy_age$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_age <- robust(MultiLevelModel_SMD_hypertrophy_age, Data_SMD_hypertrophy_age$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_age, file = "models/RobuEstMultiLevelModel_hypertrophy_age")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_age, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_age")
 
 # logCVR
 Data_logCVR_age <- Data_logCVR %>%
@@ -1143,7 +1871,7 @@ Data_logCVR_age <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_age <- rma.mv(yi, V=vi, data=subset(Data_logCVR_age, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ age, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ age, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_age, file = "models/MultiLevelModel_logCVR_strength_age")
@@ -1163,7 +1891,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_age, file = "models/RobuEstMultiLeve
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_age <- rma.mv(yi, V=vi, data=subset(Data_logCVR_age, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ age, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ age, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_age, file = "models/MultiLevelModel_logCVR_hypertrophy_age")
@@ -1186,47 +1914,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_age, file = "models/RobuEstMultiL
 Data_SMD_strength_sex_._male <- Data_SMD_strength %>%
   filter(!is.na(sex_._male))
 
-MultiLevelModel_strength_sex_._male <- rma.mv(yi, V=vi, data=Data_SMD_strength_sex_._male,
+MultiLevelModel_SMD_strength_sex_._male <- rma.mv(yi, V=vi, data=Data_SMD_strength_sex_._male,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ sex_._male, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ sex_._male, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_sex_._male, file = "models/MultiLevelModel_strength_sex_._male")
+save(MultiLevelModel_SMD_strength_sex_._male, file = "models/MultiLevelModel_SMD_strength_sex_._male")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_sex_._male$vi)
-X <- model.matrix(MultiLevelModel_strength_sex_._male)
+X <- model.matrix(MultiLevelModel_SMD_strength_sex_._male)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_sex_._male <- 100 * sum(MultiLevelModel_strength_sex_._male$sigma2) / (sum(MultiLevelModel_strength_sex_._male$sigma2) + (MultiLevelModel_strength_sex_._male$k-MultiLevelModel_strength_sex_._male$p)/sum(diag(P)))
-I2bw_strength_sex_._male <- 100 * MultiLevelModel_strength_sex_._male$sigma2 / (sum(MultiLevelModel_strength_sex_._male$sigma2) + (MultiLevelModel_strength_sex_._male$k-MultiLevelModel_strength_sex_._male$p)/sum(diag(P)))
+I2_strength_sex_._male <- 100 * sum(MultiLevelModel_SMD_strength_sex_._male$sigma2) / (sum(MultiLevelModel_SMD_strength_sex_._male$sigma2) + (MultiLevelModel_SMD_strength_sex_._male$k-MultiLevelModel_SMD_strength_sex_._male$p)/sum(diag(P)))
+I2bw_strength_sex_._male <- 100 * MultiLevelModel_SMD_strength_sex_._male$sigma2 / (sum(MultiLevelModel_SMD_strength_sex_._male$sigma2) + (MultiLevelModel_SMD_strength_sex_._male$k-MultiLevelModel_SMD_strength_sex_._male$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_sex_._male <- robust(MultiLevelModel_strength_sex_._male, Data_SMD_strength_sex_._male$study)
+RobuEstMultiLevelModel_SMD_strength_sex_._male <- robust(MultiLevelModel_SMD_strength_sex_._male, Data_SMD_strength_sex_._male$study)
 
-save(RobuEstMultiLevelModel_strength_sex_._male, file = "models/RobuEstMultiLevelModel_strength_sex_._male")
+save(RobuEstMultiLevelModel_SMD_strength_sex_._male, file = "models/RobuEstMultiLevelModel_SMD_strength_sex_._male")
 
 # Hypertrophy
 Data_SMD_hypertrophy_sex_._male <- Data_SMD_hypertrophy %>%
   filter(!is.na(sex_._male))
 
-MultiLevelModel_hypertrophy_sex_._male <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_sex_._male,
+MultiLevelModel_SMD_hypertrophy_sex_._male <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_sex_._male,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ sex_._male, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ sex_._male, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_sex_._male, file = "models/MultiLevelModel_hypertrophy_sex_._male")
+save(MultiLevelModel_SMD_hypertrophy_sex_._male, file = "models/MultiLevelModel_SMD_hypertrophy_sex_._male")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_sex_._male$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_sex_._male)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_sex_._male)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_sex_._male <- 100 * sum(MultiLevelModel_hypertrophy_sex_._male$sigma2) / (sum(MultiLevelModel_hypertrophy_sex_._male$sigma2) + (MultiLevelModel_hypertrophy_sex_._male$k-MultiLevelModel_hypertrophy_sex_._male$p)/sum(diag(P)))
-I2bw_hypertrophy_sex_._male <- 100 * MultiLevelModel_hypertrophy_sex_._male$sigma2 / (sum(MultiLevelModel_hypertrophy_sex_._male$sigma2) + (MultiLevelModel_hypertrophy_sex_._male$k-MultiLevelModel_hypertrophy_sex_._male$p)/sum(diag(P)))
+I2_hypertrophy_sex_._male <- 100 * sum(MultiLevelModel_SMD_hypertrophy_sex_._male$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_sex_._male$sigma2) + (MultiLevelModel_SMD_hypertrophy_sex_._male$k-MultiLevelModel_SMD_hypertrophy_sex_._male$p)/sum(diag(P)))
+I2bw_hypertrophy_sex_._male <- 100 * MultiLevelModel_SMD_hypertrophy_sex_._male$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_sex_._male$sigma2) + (MultiLevelModel_SMD_hypertrophy_sex_._male$k-MultiLevelModel_SMD_hypertrophy_sex_._male$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_sex_._male <- robust(MultiLevelModel_hypertrophy_sex_._male, Data_SMD_hypertrophy_sex_._male$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_sex_._male <- robust(MultiLevelModel_SMD_hypertrophy_sex_._male, Data_SMD_hypertrophy_sex_._male$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_sex_._male, file = "models/RobuEstMultiLevelModel_hypertrophy_sex_._male")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_sex_._male, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_sex_._male")
 
 # logCVR
 Data_logCVR_sex_._male <- Data_logCVR %>%
@@ -1235,7 +1963,7 @@ Data_logCVR_sex_._male <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_sex_._male <- rma.mv(yi, V=vi, data=subset(Data_logCVR_sex_._male, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ sex_._male, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ sex_._male, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_sex_._male, file = "models/MultiLevelModel_logCVR_strength_sex_._male")
@@ -1255,7 +1983,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_sex_._male, file = "models/RobuEstMu
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_sex_._male <- rma.mv(yi, V=vi, data=subset(Data_logCVR_sex_._male, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ sex_._male, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ sex_._male, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_sex_._male, file = "models/MultiLevelModel_logCVR_hypertrophy_sex_._male")
@@ -1278,47 +2006,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_sex_._male, file = "models/RobuEs
 Data_SMD_strength_weight <- Data_SMD_strength %>%
   filter(!is.na(weight))
 
-MultiLevelModel_strength_weight <- rma.mv(yi, V=vi, data=Data_SMD_strength_weight,
+MultiLevelModel_SMD_strength_weight <- rma.mv(yi, V=vi, data=Data_SMD_strength_weight,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ weight, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ weight, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_weight, file = "models/MultiLevelModel_strength_weight")
+save(MultiLevelModel_SMD_strength_weight, file = "models/MultiLevelModel_SMD_strength_weight")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_weight$vi)
-X <- model.matrix(MultiLevelModel_strength_weight)
+X <- model.matrix(MultiLevelModel_SMD_strength_weight)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_weight <- 100 * sum(MultiLevelModel_strength_weight$sigma2) / (sum(MultiLevelModel_strength_weight$sigma2) + (MultiLevelModel_strength_weight$k-MultiLevelModel_strength_weight$p)/sum(diag(P)))
-I2bw_strength_weight <- 100 * MultiLevelModel_strength_weight$sigma2 / (sum(MultiLevelModel_strength_weight$sigma2) + (MultiLevelModel_strength_weight$k-MultiLevelModel_strength_weight$p)/sum(diag(P)))
+I2_strength_weight <- 100 * sum(MultiLevelModel_SMD_strength_weight$sigma2) / (sum(MultiLevelModel_SMD_strength_weight$sigma2) + (MultiLevelModel_SMD_strength_weight$k-MultiLevelModel_SMD_strength_weight$p)/sum(diag(P)))
+I2bw_strength_weight <- 100 * MultiLevelModel_SMD_strength_weight$sigma2 / (sum(MultiLevelModel_SMD_strength_weight$sigma2) + (MultiLevelModel_SMD_strength_weight$k-MultiLevelModel_SMD_strength_weight$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_weight <- robust(MultiLevelModel_strength_weight, Data_SMD_strength_weight$study)
+RobuEstMultiLevelModel_SMD_strength_weight <- robust(MultiLevelModel_SMD_strength_weight, Data_SMD_strength_weight$study)
 
-save(RobuEstMultiLevelModel_strength_weight, file = "models/RobuEstMultiLevelModel_strength_weight")
+save(RobuEstMultiLevelModel_SMD_strength_weight, file = "models/RobuEstMultiLevelModel_SMD_strength_weight")
 
 # Hypertrophy
 Data_SMD_hypertrophy_weight <- Data_SMD_hypertrophy %>%
   filter(!is.na(weight))
 
-MultiLevelModel_hypertrophy_weight <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_weight,
+MultiLevelModel_SMD_hypertrophy_weight <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_weight,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ weight, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ weight, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_weight, file = "models/MultiLevelModel_hypertrophy_weight")
+save(MultiLevelModel_SMD_hypertrophy_weight, file = "models/MultiLevelModel_SMD_hypertrophy_weight")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_weight$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_weight)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_weight)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_weight <- 100 * sum(MultiLevelModel_hypertrophy_weight$sigma2) / (sum(MultiLevelModel_hypertrophy_weight$sigma2) + (MultiLevelModel_hypertrophy_weight$k-MultiLevelModel_hypertrophy_weight$p)/sum(diag(P)))
-I2bw_hypertrophy_weight <- 100 * MultiLevelModel_hypertrophy_weight$sigma2 / (sum(MultiLevelModel_hypertrophy_weight$sigma2) + (MultiLevelModel_hypertrophy_weight$k-MultiLevelModel_hypertrophy_weight$p)/sum(diag(P)))
+I2_hypertrophy_weight <- 100 * sum(MultiLevelModel_SMD_hypertrophy_weight$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_weight$sigma2) + (MultiLevelModel_SMD_hypertrophy_weight$k-MultiLevelModel_SMD_hypertrophy_weight$p)/sum(diag(P)))
+I2bw_hypertrophy_weight <- 100 * MultiLevelModel_SMD_hypertrophy_weight$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_weight$sigma2) + (MultiLevelModel_SMD_hypertrophy_weight$k-MultiLevelModel_SMD_hypertrophy_weight$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_weight <- robust(MultiLevelModel_hypertrophy_weight, Data_SMD_hypertrophy_weight$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_weight <- robust(MultiLevelModel_SMD_hypertrophy_weight, Data_SMD_hypertrophy_weight$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_weight, file = "models/RobuEstMultiLevelModel_hypertrophy_weight")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_weight, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_weight")
 
 # logCVR
 Data_logCVR_weight <- Data_logCVR %>%
@@ -1327,7 +2055,7 @@ Data_logCVR_weight <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_weight <- rma.mv(yi, V=vi, data=subset(Data_logCVR_weight, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ weight, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ weight, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_weight, file = "models/MultiLevelModel_logCVR_strength_weight")
@@ -1347,7 +2075,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_weight, file = "models/RobuEstMultiL
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_weight <- rma.mv(yi, V=vi, data=subset(Data_logCVR_weight, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ weight, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ weight, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_weight, file = "models/MultiLevelModel_logCVR_hypertrophy_weight")
@@ -1370,47 +2098,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_weight, file = "models/RobuEstMul
 Data_SMD_strength_bmi <- Data_SMD_strength %>%
   filter(!is.na(bmi))
 
-MultiLevelModel_strength_bmi <- rma.mv(yi, V=vi, data=Data_SMD_strength_bmi,
+MultiLevelModel_SMD_strength_bmi <- rma.mv(yi, V=vi, data=Data_SMD_strength_bmi,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ bmi, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ bmi, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_bmi, file = "models/MultiLevelModel_strength_bmi")
+save(MultiLevelModel_SMD_strength_bmi, file = "models/MultiLevelModel_SMD_strength_bmi")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_bmi$vi)
-X <- model.matrix(MultiLevelModel_strength_bmi)
+X <- model.matrix(MultiLevelModel_SMD_strength_bmi)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_bmi <- 100 * sum(MultiLevelModel_strength_bmi$sigma2) / (sum(MultiLevelModel_strength_bmi$sigma2) + (MultiLevelModel_strength_bmi$k-MultiLevelModel_strength_bmi$p)/sum(diag(P)))
-I2bw_strength_bmi <- 100 * MultiLevelModel_strength_bmi$sigma2 / (sum(MultiLevelModel_strength_bmi$sigma2) + (MultiLevelModel_strength_bmi$k-MultiLevelModel_strength_bmi$p)/sum(diag(P)))
+I2_strength_bmi <- 100 * sum(MultiLevelModel_SMD_strength_bmi$sigma2) / (sum(MultiLevelModel_SMD_strength_bmi$sigma2) + (MultiLevelModel_SMD_strength_bmi$k-MultiLevelModel_SMD_strength_bmi$p)/sum(diag(P)))
+I2bw_strength_bmi <- 100 * MultiLevelModel_SMD_strength_bmi$sigma2 / (sum(MultiLevelModel_SMD_strength_bmi$sigma2) + (MultiLevelModel_SMD_strength_bmi$k-MultiLevelModel_SMD_strength_bmi$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_bmi <- robust(MultiLevelModel_strength_bmi, Data_SMD_strength_bmi$study)
+RobuEstMultiLevelModel_SMD_strength_bmi <- robust(MultiLevelModel_SMD_strength_bmi, Data_SMD_strength_bmi$study)
 
-save(RobuEstMultiLevelModel_strength_bmi, file = "models/RobuEstMultiLevelModel_strength_bmi")
+save(RobuEstMultiLevelModel_SMD_strength_bmi, file = "models/RobuEstMultiLevelModel_SMD_strength_bmi")
 
 # Hypertrophy
 Data_SMD_hypertrophy_bmi <- Data_SMD_hypertrophy %>%
   filter(!is.na(bmi))
 
-MultiLevelModel_hypertrophy_bmi <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_bmi,
+MultiLevelModel_SMD_hypertrophy_bmi <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_bmi,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ bmi, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ bmi, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_bmi, file = "models/MultiLevelModel_hypertrophy_bmi")
+save(MultiLevelModel_SMD_hypertrophy_bmi, file = "models/MultiLevelModel_SMD_hypertrophy_bmi")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_bmi$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_bmi)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_bmi)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_bmi <- 100 * sum(MultiLevelModel_hypertrophy_bmi$sigma2) / (sum(MultiLevelModel_hypertrophy_bmi$sigma2) + (MultiLevelModel_hypertrophy_bmi$k-MultiLevelModel_hypertrophy_bmi$p)/sum(diag(P)))
-I2bw_hypertrophy_bmi <- 100 * MultiLevelModel_hypertrophy_bmi$sigma2 / (sum(MultiLevelModel_hypertrophy_bmi$sigma2) + (MultiLevelModel_hypertrophy_bmi$k-MultiLevelModel_hypertrophy_bmi$p)/sum(diag(P)))
+I2_hypertrophy_bmi <- 100 * sum(MultiLevelModel_SMD_hypertrophy_bmi$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_bmi$sigma2) + (MultiLevelModel_SMD_hypertrophy_bmi$k-MultiLevelModel_SMD_hypertrophy_bmi$p)/sum(diag(P)))
+I2bw_hypertrophy_bmi <- 100 * MultiLevelModel_SMD_hypertrophy_bmi$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_bmi$sigma2) + (MultiLevelModel_SMD_hypertrophy_bmi$k-MultiLevelModel_SMD_hypertrophy_bmi$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_bmi <- robust(MultiLevelModel_hypertrophy_bmi, Data_SMD_hypertrophy_bmi$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_bmi <- robust(MultiLevelModel_SMD_hypertrophy_bmi, Data_SMD_hypertrophy_bmi$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_bmi, file = "models/RobuEstMultiLevelModel_hypertrophy_bmi")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_bmi, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_bmi")
 
 # logCVR
 Data_logCVR_bmi <- Data_logCVR %>%
@@ -1419,7 +2147,7 @@ Data_logCVR_bmi <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_bmi <- rma.mv(yi, V=vi, data=subset(Data_logCVR_bmi, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ bmi, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ bmi, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_bmi, file = "models/MultiLevelModel_logCVR_strength_bmi")
@@ -1439,7 +2167,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_bmi, file = "models/RobuEstMultiLeve
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_bmi <- rma.mv(yi, V=vi, data=subset(Data_logCVR_bmi, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ bmi, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ bmi, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_bmi, file = "models/MultiLevelModel_logCVR_hypertrophy_bmi")
@@ -1462,47 +2190,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_bmi, file = "models/RobuEstMultiL
 Data_SMD_strength_train_status <- Data_SMD_strength %>%
   filter(!is.na(train_status))
 
-MultiLevelModel_strength_train_status <- rma.mv(yi, V=vi, data=Data_SMD_strength_train_status,
+MultiLevelModel_SMD_strength_train_status <- rma.mv(yi, V=vi, data=Data_SMD_strength_train_status,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ train_status - 1, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ train_status - 1, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_train_status, file = "models/MultiLevelModel_strength_train_status")
+save(MultiLevelModel_SMD_strength_train_status, file = "models/MultiLevelModel_SMD_strength_train_status")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_train_status$vi)
-X <- model.matrix(MultiLevelModel_strength_train_status)
+X <- model.matrix(MultiLevelModel_SMD_strength_train_status)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_train_status <- 100 * sum(MultiLevelModel_strength_train_status$sigma2) / (sum(MultiLevelModel_strength_train_status$sigma2) + (MultiLevelModel_strength_train_status$k-MultiLevelModel_strength_train_status$p)/sum(diag(P)))
-I2bw_strength_train_status <- 100 * MultiLevelModel_strength_train_status$sigma2 / (sum(MultiLevelModel_strength_train_status$sigma2) + (MultiLevelModel_strength_train_status$k-MultiLevelModel_strength_train_status$p)/sum(diag(P)))
+I2_strength_train_status <- 100 * sum(MultiLevelModel_SMD_strength_train_status$sigma2) / (sum(MultiLevelModel_SMD_strength_train_status$sigma2) + (MultiLevelModel_SMD_strength_train_status$k-MultiLevelModel_SMD_strength_train_status$p)/sum(diag(P)))
+I2bw_strength_train_status <- 100 * MultiLevelModel_SMD_strength_train_status$sigma2 / (sum(MultiLevelModel_SMD_strength_train_status$sigma2) + (MultiLevelModel_SMD_strength_train_status$k-MultiLevelModel_SMD_strength_train_status$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_train_status <- robust(MultiLevelModel_strength_train_status, Data_SMD_strength_train_status$study)
+RobuEstMultiLevelModel_SMD_strength_train_status <- robust(MultiLevelModel_SMD_strength_train_status, Data_SMD_strength_train_status$study)
 
-save(RobuEstMultiLevelModel_strength_train_status, file = "models/RobuEstMultiLevelModel_strength_train_status")
+save(RobuEstMultiLevelModel_SMD_strength_train_status, file = "models/RobuEstMultiLevelModel_SMD_strength_train_status")
 
 # Hypertrophy
 Data_SMD_hypertrophy_train_status <- Data_SMD_hypertrophy %>%
   filter(!is.na(train_status))
 
-MultiLevelModel_hypertrophy_train_status <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_train_status,
+MultiLevelModel_SMD_hypertrophy_train_status <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_train_status,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ train_status - 1, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ train_status - 1, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_train_status, file = "models/MultiLevelModel_hypertrophy_train_status")
+save(MultiLevelModel_SMD_hypertrophy_train_status, file = "models/MultiLevelModel_SMD_hypertrophy_train_status")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_train_status$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_train_status)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_train_status)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_train_status <- 100 * sum(MultiLevelModel_hypertrophy_train_status$sigma2) / (sum(MultiLevelModel_hypertrophy_train_status$sigma2) + (MultiLevelModel_hypertrophy_train_status$k-MultiLevelModel_hypertrophy_train_status$p)/sum(diag(P)))
-I2bw_hypertrophy_train_status <- 100 * MultiLevelModel_hypertrophy_train_status$sigma2 / (sum(MultiLevelModel_hypertrophy_train_status$sigma2) + (MultiLevelModel_hypertrophy_train_status$k-MultiLevelModel_hypertrophy_train_status$p)/sum(diag(P)))
+I2_hypertrophy_train_status <- 100 * sum(MultiLevelModel_SMD_hypertrophy_train_status$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_train_status$sigma2) + (MultiLevelModel_SMD_hypertrophy_train_status$k-MultiLevelModel_SMD_hypertrophy_train_status$p)/sum(diag(P)))
+I2bw_hypertrophy_train_status <- 100 * MultiLevelModel_SMD_hypertrophy_train_status$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_train_status$sigma2) + (MultiLevelModel_SMD_hypertrophy_train_status$k-MultiLevelModel_SMD_hypertrophy_train_status$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_train_status <- robust(MultiLevelModel_hypertrophy_train_status, Data_SMD_hypertrophy_train_status$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_train_status <- robust(MultiLevelModel_SMD_hypertrophy_train_status, Data_SMD_hypertrophy_train_status$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_train_status, file = "models/RobuEstMultiLevelModel_hypertrophy_train_status")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_train_status, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_train_status")
 
 # logCVR
 Data_logCVR_train_status <- Data_logCVR %>%
@@ -1511,7 +2239,7 @@ Data_logCVR_train_status <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_train_status <- rma.mv(yi, V=vi, data=subset(Data_logCVR_train_status, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ train_status - 1, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ train_status - 1, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_train_status, file = "models/MultiLevelModel_logCVR_strength_train_status")
@@ -1531,7 +2259,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_train_status, file = "models/RobuEst
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_train_status <- rma.mv(yi, V=vi, data=subset(Data_logCVR_train_status, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ train_status - 1, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ train_status - 1, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_train_status, file = "models/MultiLevelModel_logCVR_hypertrophy_train_status")
@@ -1554,47 +2282,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_train_status, file = "models/Robu
 Data_SMD_strength_healthy_clinical <- Data_SMD_strength %>%
   filter(!is.na(healthy_clinical))
 
-MultiLevelModel_strength_healthy_clinical <- rma.mv(yi, V=vi, data=Data_SMD_strength_healthy_clinical,
+MultiLevelModel_SMD_strength_healthy_clinical <- rma.mv(yi, V=vi, data=Data_SMD_strength_healthy_clinical,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ healthy_clinical - 1, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ healthy_clinical - 1, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_healthy_clinical, file = "models/MultiLevelModel_strength_healthy_clinical")
+save(MultiLevelModel_SMD_strength_healthy_clinical, file = "models/MultiLevelModel_SMD_strength_healthy_clinical")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_healthy_clinical$vi)
-X <- model.matrix(MultiLevelModel_strength_healthy_clinical)
+X <- model.matrix(MultiLevelModel_SMD_strength_healthy_clinical)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_healthy_clinical <- 100 * sum(MultiLevelModel_strength_healthy_clinical$sigma2) / (sum(MultiLevelModel_strength_healthy_clinical$sigma2) + (MultiLevelModel_strength_healthy_clinical$k-MultiLevelModel_strength_healthy_clinical$p)/sum(diag(P)))
-I2bw_strength_healthy_clinical <- 100 * MultiLevelModel_strength_healthy_clinical$sigma2 / (sum(MultiLevelModel_strength_healthy_clinical$sigma2) + (MultiLevelModel_strength_healthy_clinical$k-MultiLevelModel_strength_healthy_clinical$p)/sum(diag(P)))
+I2_strength_healthy_clinical <- 100 * sum(MultiLevelModel_SMD_strength_healthy_clinical$sigma2) / (sum(MultiLevelModel_SMD_strength_healthy_clinical$sigma2) + (MultiLevelModel_SMD_strength_healthy_clinical$k-MultiLevelModel_SMD_strength_healthy_clinical$p)/sum(diag(P)))
+I2bw_strength_healthy_clinical <- 100 * MultiLevelModel_SMD_strength_healthy_clinical$sigma2 / (sum(MultiLevelModel_SMD_strength_healthy_clinical$sigma2) + (MultiLevelModel_SMD_strength_healthy_clinical$k-MultiLevelModel_SMD_strength_healthy_clinical$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_healthy_clinical <- robust(MultiLevelModel_strength_healthy_clinical, Data_SMD_strength_healthy_clinical$study)
+RobuEstMultiLevelModel_SMD_strength_healthy_clinical <- robust(MultiLevelModel_SMD_strength_healthy_clinical, Data_SMD_strength_healthy_clinical$study)
 
-save(RobuEstMultiLevelModel_strength_healthy_clinical, file = "models/RobuEstMultiLevelModel_strength_healthy_clinical")
+save(RobuEstMultiLevelModel_SMD_strength_healthy_clinical, file = "models/RobuEstMultiLevelModel_SMD_strength_healthy_clinical")
 
 # Hypertrophy
 Data_SMD_hypertrophy_healthy_clinical <- Data_SMD_hypertrophy %>%
   filter(!is.na(healthy_clinical))
 
-MultiLevelModel_hypertrophy_healthy_clinical <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_healthy_clinical,
+MultiLevelModel_SMD_hypertrophy_healthy_clinical <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_healthy_clinical,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ healthy_clinical - 1, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ healthy_clinical - 1, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_healthy_clinical, file = "models/MultiLevelModel_hypertrophy_healthy_clinical")
+save(MultiLevelModel_SMD_hypertrophy_healthy_clinical, file = "models/MultiLevelModel_SMD_hypertrophy_healthy_clinical")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_healthy_clinical$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_healthy_clinical)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_healthy_clinical)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_healthy_clinical <- 100 * sum(MultiLevelModel_hypertrophy_healthy_clinical$sigma2) / (sum(MultiLevelModel_hypertrophy_healthy_clinical$sigma2) + (MultiLevelModel_hypertrophy_healthy_clinical$k-MultiLevelModel_hypertrophy_healthy_clinical$p)/sum(diag(P)))
-I2bw_hypertrophy_healthy_clinical <- 100 * MultiLevelModel_hypertrophy_healthy_clinical$sigma2 / (sum(MultiLevelModel_hypertrophy_healthy_clinical$sigma2) + (MultiLevelModel_hypertrophy_healthy_clinical$k-MultiLevelModel_hypertrophy_healthy_clinical$p)/sum(diag(P)))
+I2_hypertrophy_healthy_clinical <- 100 * sum(MultiLevelModel_SMD_hypertrophy_healthy_clinical$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_healthy_clinical$sigma2) + (MultiLevelModel_SMD_hypertrophy_healthy_clinical$k-MultiLevelModel_SMD_hypertrophy_healthy_clinical$p)/sum(diag(P)))
+I2bw_hypertrophy_healthy_clinical <- 100 * MultiLevelModel_SMD_hypertrophy_healthy_clinical$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_healthy_clinical$sigma2) + (MultiLevelModel_SMD_hypertrophy_healthy_clinical$k-MultiLevelModel_SMD_hypertrophy_healthy_clinical$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_healthy_clinical <- robust(MultiLevelModel_hypertrophy_healthy_clinical, Data_SMD_hypertrophy_healthy_clinical$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_healthy_clinical <- robust(MultiLevelModel_SMD_hypertrophy_healthy_clinical, Data_SMD_hypertrophy_healthy_clinical$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_healthy_clinical, file = "models/RobuEstMultiLevelModel_hypertrophy_healthy_clinical")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_healthy_clinical, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_healthy_clinical")
 
 # logCVR
 Data_logCVR_healthy_clinical <- Data_logCVR %>%
@@ -1603,7 +2331,7 @@ Data_logCVR_healthy_clinical <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_healthy_clinical <- rma.mv(yi, V=vi, data=subset(Data_logCVR_healthy_clinical, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ healthy_clinical - 1, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ healthy_clinical - 1, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_healthy_clinical, file = "models/MultiLevelModel_logCVR_strength_healthy_clinical")
@@ -1623,7 +2351,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_healthy_clinical, file = "models/Rob
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_healthy_clinical <- rma.mv(yi, V=vi, data=subset(Data_logCVR_healthy_clinical, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ healthy_clinical - 1, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ healthy_clinical - 1, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_healthy_clinical, file = "models/MultiLevelModel_logCVR_hypertrophy_healthy_clinical")
@@ -1646,47 +2374,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_healthy_clinical, file = "models/
 Data_SMD_strength_RT_only <- Data_SMD_strength %>%
   filter(!is.na(RT_only))
 
-MultiLevelModel_strength_RT_only <- rma.mv(yi, V=vi, data=Data_SMD_strength_RT_only,
+MultiLevelModel_SMD_strength_RT_only <- rma.mv(yi, V=vi, data=Data_SMD_strength_RT_only,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ RT_only - 1, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ RT_only - 1, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_RT_only, file = "models/MultiLevelModel_strength_RT_only")
+save(MultiLevelModel_SMD_strength_RT_only, file = "models/MultiLevelModel_SMD_strength_RT_only")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_RT_only$vi)
-X <- model.matrix(MultiLevelModel_strength_RT_only)
+X <- model.matrix(MultiLevelModel_SMD_strength_RT_only)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_RT_only <- 100 * sum(MultiLevelModel_strength_RT_only$sigma2) / (sum(MultiLevelModel_strength_RT_only$sigma2) + (MultiLevelModel_strength_RT_only$k-MultiLevelModel_strength_RT_only$p)/sum(diag(P)))
-I2bw_strength_RT_only <- 100 * MultiLevelModel_strength_RT_only$sigma2 / (sum(MultiLevelModel_strength_RT_only$sigma2) + (MultiLevelModel_strength_RT_only$k-MultiLevelModel_strength_RT_only$p)/sum(diag(P)))
+I2_strength_RT_only <- 100 * sum(MultiLevelModel_SMD_strength_RT_only$sigma2) / (sum(MultiLevelModel_SMD_strength_RT_only$sigma2) + (MultiLevelModel_SMD_strength_RT_only$k-MultiLevelModel_SMD_strength_RT_only$p)/sum(diag(P)))
+I2bw_strength_RT_only <- 100 * MultiLevelModel_SMD_strength_RT_only$sigma2 / (sum(MultiLevelModel_SMD_strength_RT_only$sigma2) + (MultiLevelModel_SMD_strength_RT_only$k-MultiLevelModel_SMD_strength_RT_only$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_RT_only <- robust(MultiLevelModel_strength_RT_only, Data_SMD_strength_RT_only$study)
+RobuEstMultiLevelModel_SMD_strength_RT_only <- robust(MultiLevelModel_SMD_strength_RT_only, Data_SMD_strength_RT_only$study)
 
-save(RobuEstMultiLevelModel_strength_RT_only, file = "models/RobuEstMultiLevelModel_strength_RT_only")
+save(RobuEstMultiLevelModel_SMD_strength_RT_only, file = "models/RobuEstMultiLevelModel_SMD_strength_RT_only")
 
 # Hypertrophy
 Data_SMD_hypertrophy_RT_only <- Data_SMD_hypertrophy %>%
   filter(!is.na(RT_only))
 
-MultiLevelModel_hypertrophy_RT_only <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_RT_only,
+MultiLevelModel_SMD_hypertrophy_RT_only <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_RT_only,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ RT_only - 1, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ RT_only - 1, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_RT_only, file = "models/MultiLevelModel_hypertrophy_RT_only")
+save(MultiLevelModel_SMD_hypertrophy_RT_only, file = "models/MultiLevelModel_SMD_hypertrophy_RT_only")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_RT_only$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_RT_only)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_RT_only)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_RT_only <- 100 * sum(MultiLevelModel_hypertrophy_RT_only$sigma2) / (sum(MultiLevelModel_hypertrophy_RT_only$sigma2) + (MultiLevelModel_hypertrophy_RT_only$k-MultiLevelModel_hypertrophy_RT_only$p)/sum(diag(P)))
-I2bw_hypertrophy_RT_only <- 100 * MultiLevelModel_hypertrophy_RT_only$sigma2 / (sum(MultiLevelModel_hypertrophy_RT_only$sigma2) + (MultiLevelModel_hypertrophy_RT_only$k-MultiLevelModel_hypertrophy_RT_only$p)/sum(diag(P)))
+I2_hypertrophy_RT_only <- 100 * sum(MultiLevelModel_SMD_hypertrophy_RT_only$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_RT_only$sigma2) + (MultiLevelModel_SMD_hypertrophy_RT_only$k-MultiLevelModel_SMD_hypertrophy_RT_only$p)/sum(diag(P)))
+I2bw_hypertrophy_RT_only <- 100 * MultiLevelModel_SMD_hypertrophy_RT_only$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_RT_only$sigma2) + (MultiLevelModel_SMD_hypertrophy_RT_only$k-MultiLevelModel_SMD_hypertrophy_RT_only$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_RT_only <- robust(MultiLevelModel_hypertrophy_RT_only, Data_SMD_hypertrophy_RT_only$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_RT_only <- robust(MultiLevelModel_SMD_hypertrophy_RT_only, Data_SMD_hypertrophy_RT_only$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_RT_only, file = "models/RobuEstMultiLevelModel_hypertrophy_RT_only")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_RT_only, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_RT_only")
 
 # logCVR
 Data_logCVR_RT_only <- Data_logCVR %>%
@@ -1695,7 +2423,7 @@ Data_logCVR_RT_only <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_RT_only <- rma.mv(yi, V=vi, data=subset(Data_logCVR_RT_only, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ RT_only - 1, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ RT_only - 1, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_RT_only, file = "models/MultiLevelModel_logCVR_strength_RT_only")
@@ -1715,7 +2443,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_RT_only, file = "models/RobuEstMulti
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_RT_only <- rma.mv(yi, V=vi, data=subset(Data_logCVR_RT_only, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ RT_only - 1, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ RT_only - 1, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_RT_only, file = "models/MultiLevelModel_logCVR_hypertrophy_RT_only")
@@ -1738,47 +2466,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_RT_only, file = "models/RobuEstMu
 Data_SMD_strength_weeks <- Data_SMD_strength %>%
   filter(!is.na(weeks))
 
-MultiLevelModel_strength_weeks <- rma.mv(yi, V=vi, data=Data_SMD_strength_weeks,
+MultiLevelModel_SMD_strength_weeks <- rma.mv(yi, V=vi, data=Data_SMD_strength_weeks,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ weeks, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ weeks, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_weeks, file = "models/MultiLevelModel_strength_weeks")
+save(MultiLevelModel_SMD_strength_weeks, file = "models/MultiLevelModel_SMD_strength_weeks")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_weeks$vi)
-X <- model.matrix(MultiLevelModel_strength_weeks)
+X <- model.matrix(MultiLevelModel_SMD_strength_weeks)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_weeks <- 100 * sum(MultiLevelModel_strength_weeks$sigma2) / (sum(MultiLevelModel_strength_weeks$sigma2) + (MultiLevelModel_strength_weeks$k-MultiLevelModel_strength_weeks$p)/sum(diag(P)))
-I2bw_strength_weeks <- 100 * MultiLevelModel_strength_weeks$sigma2 / (sum(MultiLevelModel_strength_weeks$sigma2) + (MultiLevelModel_strength_weeks$k-MultiLevelModel_strength_weeks$p)/sum(diag(P)))
+I2_strength_weeks <- 100 * sum(MultiLevelModel_SMD_strength_weeks$sigma2) / (sum(MultiLevelModel_SMD_strength_weeks$sigma2) + (MultiLevelModel_SMD_strength_weeks$k-MultiLevelModel_SMD_strength_weeks$p)/sum(diag(P)))
+I2bw_strength_weeks <- 100 * MultiLevelModel_SMD_strength_weeks$sigma2 / (sum(MultiLevelModel_SMD_strength_weeks$sigma2) + (MultiLevelModel_SMD_strength_weeks$k-MultiLevelModel_SMD_strength_weeks$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_weeks <- robust(MultiLevelModel_strength_weeks, Data_SMD_strength_weeks$study)
+RobuEstMultiLevelModel_SMD_strength_weeks <- robust(MultiLevelModel_SMD_strength_weeks, Data_SMD_strength_weeks$study)
 
-save(RobuEstMultiLevelModel_strength_weeks, file = "models/RobuEstMultiLevelModel_strength_weeks")
+save(RobuEstMultiLevelModel_SMD_strength_weeks, file = "models/RobuEstMultiLevelModel_SMD_strength_weeks")
 
 # Hypertrophy
 Data_SMD_hypertrophy_weeks <- Data_SMD_hypertrophy %>%
   filter(!is.na(weeks))
 
-MultiLevelModel_hypertrophy_weeks <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_weeks,
+MultiLevelModel_SMD_hypertrophy_weeks <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_weeks,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ weeks, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ weeks, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_weeks, file = "models/MultiLevelModel_hypertrophy_weeks")
+save(MultiLevelModel_SMD_hypertrophy_weeks, file = "models/MultiLevelModel_SMD_hypertrophy_weeks")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_weeks$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_weeks)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_weeks)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_weeks <- 100 * sum(MultiLevelModel_hypertrophy_weeks$sigma2) / (sum(MultiLevelModel_hypertrophy_weeks$sigma2) + (MultiLevelModel_hypertrophy_weeks$k-MultiLevelModel_hypertrophy_weeks$p)/sum(diag(P)))
-I2bw_hypertrophy_weeks <- 100 * MultiLevelModel_hypertrophy_weeks$sigma2 / (sum(MultiLevelModel_hypertrophy_weeks$sigma2) + (MultiLevelModel_hypertrophy_weeks$k-MultiLevelModel_hypertrophy_weeks$p)/sum(diag(P)))
+I2_hypertrophy_weeks <- 100 * sum(MultiLevelModel_SMD_hypertrophy_weeks$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_weeks$sigma2) + (MultiLevelModel_SMD_hypertrophy_weeks$k-MultiLevelModel_SMD_hypertrophy_weeks$p)/sum(diag(P)))
+I2bw_hypertrophy_weeks <- 100 * MultiLevelModel_SMD_hypertrophy_weeks$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_weeks$sigma2) + (MultiLevelModel_SMD_hypertrophy_weeks$k-MultiLevelModel_SMD_hypertrophy_weeks$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_weeks <- robust(MultiLevelModel_hypertrophy_weeks, Data_SMD_hypertrophy_weeks$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_weeks <- robust(MultiLevelModel_SMD_hypertrophy_weeks, Data_SMD_hypertrophy_weeks$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_weeks, file = "models/RobuEstMultiLevelModel_hypertrophy_weeks")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_weeks, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_weeks")
 
 # logCVR
 Data_logCVR_weeks <- Data_logCVR %>%
@@ -1787,7 +2515,7 @@ Data_logCVR_weeks <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_weeks <- rma.mv(yi, V=vi, data=subset(Data_logCVR_weeks, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ weeks, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ weeks, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_weeks, file = "models/MultiLevelModel_logCVR_strength_weeks")
@@ -1807,7 +2535,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_weeks, file = "models/RobuEstMultiLe
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_weeks <- rma.mv(yi, V=vi, data=subset(Data_logCVR_weeks, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ weeks, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ weeks, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_weeks, file = "models/MultiLevelModel_logCVR_hypertrophy_weeks")
@@ -1830,47 +2558,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_weeks, file = "models/RobuEstMult
 Data_SMD_strength_freq <- Data_SMD_strength %>%
   filter(!is.na(freq))
 
-MultiLevelModel_strength_freq <- rma.mv(yi, V=vi, data=Data_SMD_strength_freq,
+MultiLevelModel_SMD_strength_freq <- rma.mv(yi, V=vi, data=Data_SMD_strength_freq,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ freq, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ freq, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_freq, file = "models/MultiLevelModel_strength_freq")
+save(MultiLevelModel_SMD_strength_freq, file = "models/MultiLevelModel_SMD_strength_freq")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_freq$vi)
-X <- model.matrix(MultiLevelModel_strength_freq)
+X <- model.matrix(MultiLevelModel_SMD_strength_freq)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_freq <- 100 * sum(MultiLevelModel_strength_freq$sigma2) / (sum(MultiLevelModel_strength_freq$sigma2) + (MultiLevelModel_strength_freq$k-MultiLevelModel_strength_freq$p)/sum(diag(P)))
-I2bw_strength_freq <- 100 * MultiLevelModel_strength_freq$sigma2 / (sum(MultiLevelModel_strength_freq$sigma2) + (MultiLevelModel_strength_freq$k-MultiLevelModel_strength_freq$p)/sum(diag(P)))
+I2_strength_freq <- 100 * sum(MultiLevelModel_SMD_strength_freq$sigma2) / (sum(MultiLevelModel_SMD_strength_freq$sigma2) + (MultiLevelModel_SMD_strength_freq$k-MultiLevelModel_SMD_strength_freq$p)/sum(diag(P)))
+I2bw_strength_freq <- 100 * MultiLevelModel_SMD_strength_freq$sigma2 / (sum(MultiLevelModel_SMD_strength_freq$sigma2) + (MultiLevelModel_SMD_strength_freq$k-MultiLevelModel_SMD_strength_freq$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_freq <- robust(MultiLevelModel_strength_freq, Data_SMD_strength_freq$study)
+RobuEstMultiLevelModel_SMD_strength_freq <- robust(MultiLevelModel_SMD_strength_freq, Data_SMD_strength_freq$study)
 
-save(RobuEstMultiLevelModel_strength_freq, file = "models/RobuEstMultiLevelModel_strength_freq")
+save(RobuEstMultiLevelModel_SMD_strength_freq, file = "models/RobuEstMultiLevelModel_SMD_strength_freq")
 
 # Hypertrophy
 Data_SMD_hypertrophy_freq <- Data_SMD_hypertrophy %>%
   filter(!is.na(freq))
 
-MultiLevelModel_hypertrophy_freq <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_freq,
+MultiLevelModel_SMD_hypertrophy_freq <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_freq,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ freq, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ freq, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_freq, file = "models/MultiLevelModel_hypertrophy_freq")
+save(MultiLevelModel_SMD_hypertrophy_freq, file = "models/MultiLevelModel_SMD_hypertrophy_freq")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_freq$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_freq)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_freq)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_freq <- 100 * sum(MultiLevelModel_hypertrophy_freq$sigma2) / (sum(MultiLevelModel_hypertrophy_freq$sigma2) + (MultiLevelModel_hypertrophy_freq$k-MultiLevelModel_hypertrophy_freq$p)/sum(diag(P)))
-I2bw_hypertrophy_freq <- 100 * MultiLevelModel_hypertrophy_freq$sigma2 / (sum(MultiLevelModel_hypertrophy_freq$sigma2) + (MultiLevelModel_hypertrophy_freq$k-MultiLevelModel_hypertrophy_freq$p)/sum(diag(P)))
+I2_hypertrophy_freq <- 100 * sum(MultiLevelModel_SMD_hypertrophy_freq$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_freq$sigma2) + (MultiLevelModel_SMD_hypertrophy_freq$k-MultiLevelModel_SMD_hypertrophy_freq$p)/sum(diag(P)))
+I2bw_hypertrophy_freq <- 100 * MultiLevelModel_SMD_hypertrophy_freq$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_freq$sigma2) + (MultiLevelModel_SMD_hypertrophy_freq$k-MultiLevelModel_SMD_hypertrophy_freq$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_freq <- robust(MultiLevelModel_hypertrophy_freq, Data_SMD_hypertrophy_freq$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_freq <- robust(MultiLevelModel_SMD_hypertrophy_freq, Data_SMD_hypertrophy_freq$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_freq, file = "models/RobuEstMultiLevelModel_hypertrophy_freq")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_freq, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_freq")
 
 # logCVR
 Data_logCVR_freq <- Data_logCVR %>%
@@ -1879,7 +2607,7 @@ Data_logCVR_freq <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_freq <- rma.mv(yi, V=vi, data=subset(Data_logCVR_freq, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ freq, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ freq, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_freq, file = "models/MultiLevelModel_logCVR_strength_freq")
@@ -1899,7 +2627,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_freq, file = "models/RobuEstMultiLev
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_freq <- rma.mv(yi, V=vi, data=subset(Data_logCVR_freq, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ freq, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ freq, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_freq, file = "models/MultiLevelModel_logCVR_hypertrophy_freq")
@@ -1922,47 +2650,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_freq, file = "models/RobuEstMulti
 Data_SMD_strength_exercises <- Data_SMD_strength %>%
   filter(!is.na(exercises))
 
-MultiLevelModel_strength_exercises <- rma.mv(yi, V=vi, data=Data_SMD_strength_exercises,
+MultiLevelModel_SMD_strength_exercises <- rma.mv(yi, V=vi, data=Data_SMD_strength_exercises,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ exercises, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ exercises, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_exercises, file = "models/MultiLevelModel_strength_exercises")
+save(MultiLevelModel_SMD_strength_exercises, file = "models/MultiLevelModel_SMD_strength_exercises")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_exercises$vi)
-X <- model.matrix(MultiLevelModel_strength_exercises)
+X <- model.matrix(MultiLevelModel_SMD_strength_exercises)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_exercises <- 100 * sum(MultiLevelModel_strength_exercises$sigma2) / (sum(MultiLevelModel_strength_exercises$sigma2) + (MultiLevelModel_strength_exercises$k-MultiLevelModel_strength_exercises$p)/sum(diag(P)))
-I2bw_strength_exercises <- 100 * MultiLevelModel_strength_exercises$sigma2 / (sum(MultiLevelModel_strength_exercises$sigma2) + (MultiLevelModel_strength_exercises$k-MultiLevelModel_strength_exercises$p)/sum(diag(P)))
+I2_strength_exercises <- 100 * sum(MultiLevelModel_SMD_strength_exercises$sigma2) / (sum(MultiLevelModel_SMD_strength_exercises$sigma2) + (MultiLevelModel_SMD_strength_exercises$k-MultiLevelModel_SMD_strength_exercises$p)/sum(diag(P)))
+I2bw_strength_exercises <- 100 * MultiLevelModel_SMD_strength_exercises$sigma2 / (sum(MultiLevelModel_SMD_strength_exercises$sigma2) + (MultiLevelModel_SMD_strength_exercises$k-MultiLevelModel_SMD_strength_exercises$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_exercises <- robust(MultiLevelModel_strength_exercises, Data_SMD_strength_exercises$study)
+RobuEstMultiLevelModel_SMD_strength_exercises <- robust(MultiLevelModel_SMD_strength_exercises, Data_SMD_strength_exercises$study)
 
-save(RobuEstMultiLevelModel_strength_exercises, file = "models/RobuEstMultiLevelModel_strength_exercises")
+save(RobuEstMultiLevelModel_SMD_strength_exercises, file = "models/RobuEstMultiLevelModel_SMD_strength_exercises")
 
 # Hypertrophy
 Data_SMD_hypertrophy_exercises <- Data_SMD_hypertrophy %>%
   filter(!is.na(exercises))
 
-MultiLevelModel_hypertrophy_exercises <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_exercises,
+MultiLevelModel_SMD_hypertrophy_exercises <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_exercises,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ exercises, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ exercises, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_exercises, file = "models/MultiLevelModel_hypertrophy_exercises")
+save(MultiLevelModel_SMD_hypertrophy_exercises, file = "models/MultiLevelModel_SMD_hypertrophy_exercises")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_exercises$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_exercises)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_exercises)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_exercises <- 100 * sum(MultiLevelModel_hypertrophy_exercises$sigma2) / (sum(MultiLevelModel_hypertrophy_exercises$sigma2) + (MultiLevelModel_hypertrophy_exercises$k-MultiLevelModel_hypertrophy_exercises$p)/sum(diag(P)))
-I2bw_hypertrophy_exercises <- 100 * MultiLevelModel_hypertrophy_exercises$sigma2 / (sum(MultiLevelModel_hypertrophy_exercises$sigma2) + (MultiLevelModel_hypertrophy_exercises$k-MultiLevelModel_hypertrophy_exercises$p)/sum(diag(P)))
+I2_hypertrophy_exercises <- 100 * sum(MultiLevelModel_SMD_hypertrophy_exercises$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_exercises$sigma2) + (MultiLevelModel_SMD_hypertrophy_exercises$k-MultiLevelModel_SMD_hypertrophy_exercises$p)/sum(diag(P)))
+I2bw_hypertrophy_exercises <- 100 * MultiLevelModel_SMD_hypertrophy_exercises$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_exercises$sigma2) + (MultiLevelModel_SMD_hypertrophy_exercises$k-MultiLevelModel_SMD_hypertrophy_exercises$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_exercises <- robust(MultiLevelModel_hypertrophy_exercises, Data_SMD_hypertrophy_exercises$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_exercises <- robust(MultiLevelModel_SMD_hypertrophy_exercises, Data_SMD_hypertrophy_exercises$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_exercises, file = "models/RobuEstMultiLevelModel_hypertrophy_exercises")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_exercises, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_exercises")
 
 # logCVR
 Data_logCVR_exercises <- Data_logCVR %>%
@@ -1971,7 +2699,7 @@ Data_logCVR_exercises <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_exercises <- rma.mv(yi, V=vi, data=subset(Data_logCVR_exercises, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ exercises, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ exercises, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_exercises, file = "models/MultiLevelModel_logCVR_strength_exercises")
@@ -1991,7 +2719,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_exercises, file = "models/RobuEstMul
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_exercises <- rma.mv(yi, V=vi, data=subset(Data_logCVR_exercises, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ exercises, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ exercises, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_exercises, file = "models/MultiLevelModel_logCVR_hypertrophy_exercises")
@@ -2014,47 +2742,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_exercises, file = "models/RobuEst
 Data_SMD_strength_sets_exercise <- Data_SMD_strength %>%
   filter(!is.na(sets_exercise))
 
-MultiLevelModel_strength_sets_exercise <- rma.mv(yi, V=vi, data=Data_SMD_strength_sets_exercise,
+MultiLevelModel_SMD_strength_sets_exercise <- rma.mv(yi, V=vi, data=Data_SMD_strength_sets_exercise,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ sets_exercise, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ sets_exercise, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_sets_exercise, file = "models/MultiLevelModel_strength_sets_exercise")
+save(MultiLevelModel_SMD_strength_sets_exercise, file = "models/MultiLevelModel_SMD_strength_sets_exercise")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_sets_exercise$vi)
-X <- model.matrix(MultiLevelModel_strength_sets_exercise)
+X <- model.matrix(MultiLevelModel_SMD_strength_sets_exercise)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_sets_exercise <- 100 * sum(MultiLevelModel_strength_sets_exercise$sigma2) / (sum(MultiLevelModel_strength_sets_exercise$sigma2) + (MultiLevelModel_strength_sets_exercise$k-MultiLevelModel_strength_sets_exercise$p)/sum(diag(P)))
-I2bw_strength_sets_exercise <- 100 * MultiLevelModel_strength_sets_exercise$sigma2 / (sum(MultiLevelModel_strength_sets_exercise$sigma2) + (MultiLevelModel_strength_sets_exercise$k-MultiLevelModel_strength_sets_exercise$p)/sum(diag(P)))
+I2_strength_sets_exercise <- 100 * sum(MultiLevelModel_SMD_strength_sets_exercise$sigma2) / (sum(MultiLevelModel_SMD_strength_sets_exercise$sigma2) + (MultiLevelModel_SMD_strength_sets_exercise$k-MultiLevelModel_SMD_strength_sets_exercise$p)/sum(diag(P)))
+I2bw_strength_sets_exercise <- 100 * MultiLevelModel_SMD_strength_sets_exercise$sigma2 / (sum(MultiLevelModel_SMD_strength_sets_exercise$sigma2) + (MultiLevelModel_SMD_strength_sets_exercise$k-MultiLevelModel_SMD_strength_sets_exercise$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_sets_exercise <- robust(MultiLevelModel_strength_sets_exercise, Data_SMD_strength_sets_exercise$study)
+RobuEstMultiLevelModel_SMD_strength_sets_exercise <- robust(MultiLevelModel_SMD_strength_sets_exercise, Data_SMD_strength_sets_exercise$study)
 
-save(RobuEstMultiLevelModel_strength_sets_exercise, file = "models/RobuEstMultiLevelModel_strength_sets_exercise")
+save(RobuEstMultiLevelModel_SMD_strength_sets_exercise, file = "models/RobuEstMultiLevelModel_SMD_strength_sets_exercise")
 
 # Hypertrophy
 Data_SMD_hypertrophy_sets_exercise <- Data_SMD_hypertrophy %>%
   filter(!is.na(sets_exercise))
 
-MultiLevelModel_hypertrophy_sets_exercise <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_sets_exercise,
+MultiLevelModel_SMD_hypertrophy_sets_exercise <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_sets_exercise,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ sets_exercise, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ sets_exercise, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_sets_exercise, file = "models/MultiLevelModel_hypertrophy_sets_exercise")
+save(MultiLevelModel_SMD_hypertrophy_sets_exercise, file = "models/MultiLevelModel_SMD_hypertrophy_sets_exercise")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_sets_exercise$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_sets_exercise)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_sets_exercise)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_sets_exercise <- 100 * sum(MultiLevelModel_hypertrophy_sets_exercise$sigma2) / (sum(MultiLevelModel_hypertrophy_sets_exercise$sigma2) + (MultiLevelModel_hypertrophy_sets_exercise$k-MultiLevelModel_hypertrophy_sets_exercise$p)/sum(diag(P)))
-I2bw_hypertrophy_sets_exercise <- 100 * MultiLevelModel_hypertrophy_sets_exercise$sigma2 / (sum(MultiLevelModel_hypertrophy_sets_exercise$sigma2) + (MultiLevelModel_hypertrophy_sets_exercise$k-MultiLevelModel_hypertrophy_sets_exercise$p)/sum(diag(P)))
+I2_hypertrophy_sets_exercise <- 100 * sum(MultiLevelModel_SMD_hypertrophy_sets_exercise$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_sets_exercise$sigma2) + (MultiLevelModel_SMD_hypertrophy_sets_exercise$k-MultiLevelModel_SMD_hypertrophy_sets_exercise$p)/sum(diag(P)))
+I2bw_hypertrophy_sets_exercise <- 100 * MultiLevelModel_SMD_hypertrophy_sets_exercise$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_sets_exercise$sigma2) + (MultiLevelModel_SMD_hypertrophy_sets_exercise$k-MultiLevelModel_SMD_hypertrophy_sets_exercise$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_sets_exercise <- robust(MultiLevelModel_hypertrophy_sets_exercise, Data_SMD_hypertrophy_sets_exercise$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_sets_exercise <- robust(MultiLevelModel_SMD_hypertrophy_sets_exercise, Data_SMD_hypertrophy_sets_exercise$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_sets_exercise, file = "models/RobuEstMultiLevelModel_hypertrophy_sets_exercise")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_sets_exercise, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_sets_exercise")
 
 # logCVR
 Data_logCVR_sets_exercise <- Data_logCVR %>%
@@ -2063,7 +2791,7 @@ Data_logCVR_sets_exercise <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_sets_exercise <- rma.mv(yi, V=vi, data=subset(Data_logCVR_sets_exercise, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ sets_exercise, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ sets_exercise, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_sets_exercise, file = "models/MultiLevelModel_logCVR_strength_sets_exercise")
@@ -2083,7 +2811,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_sets_exercise, file = "models/RobuEs
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_sets_exercise <- rma.mv(yi, V=vi, data=subset(Data_logCVR_sets_exercise, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ sets_exercise, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ sets_exercise, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_sets_exercise, file = "models/MultiLevelModel_logCVR_hypertrophy_sets_exercise")
@@ -2106,47 +2834,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_sets_exercise, file = "models/Rob
 Data_SMD_strength_reps <- Data_SMD_strength %>%
   filter(!is.na(reps))
 
-MultiLevelModel_strength_reps <- rma.mv(yi, V=vi, data=Data_SMD_strength_reps,
+MultiLevelModel_SMD_strength_reps <- rma.mv(yi, V=vi, data=Data_SMD_strength_reps,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ reps, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ reps, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_reps, file = "models/MultiLevelModel_strength_reps")
+save(MultiLevelModel_SMD_strength_reps, file = "models/MultiLevelModel_SMD_strength_reps")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_reps$vi)
-X <- model.matrix(MultiLevelModel_strength_reps)
+X <- model.matrix(MultiLevelModel_SMD_strength_reps)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_reps <- 100 * sum(MultiLevelModel_strength_reps$sigma2) / (sum(MultiLevelModel_strength_reps$sigma2) + (MultiLevelModel_strength_reps$k-MultiLevelModel_strength_reps$p)/sum(diag(P)))
-I2bw_strength_reps <- 100 * MultiLevelModel_strength_reps$sigma2 / (sum(MultiLevelModel_strength_reps$sigma2) + (MultiLevelModel_strength_reps$k-MultiLevelModel_strength_reps$p)/sum(diag(P)))
+I2_strength_reps <- 100 * sum(MultiLevelModel_SMD_strength_reps$sigma2) / (sum(MultiLevelModel_SMD_strength_reps$sigma2) + (MultiLevelModel_SMD_strength_reps$k-MultiLevelModel_SMD_strength_reps$p)/sum(diag(P)))
+I2bw_strength_reps <- 100 * MultiLevelModel_SMD_strength_reps$sigma2 / (sum(MultiLevelModel_SMD_strength_reps$sigma2) + (MultiLevelModel_SMD_strength_reps$k-MultiLevelModel_SMD_strength_reps$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_reps <- robust(MultiLevelModel_strength_reps, Data_SMD_strength_reps$study)
+RobuEstMultiLevelModel_SMD_strength_reps <- robust(MultiLevelModel_SMD_strength_reps, Data_SMD_strength_reps$study)
 
-save(RobuEstMultiLevelModel_strength_reps, file = "models/RobuEstMultiLevelModel_strength_reps")
+save(RobuEstMultiLevelModel_SMD_strength_reps, file = "models/RobuEstMultiLevelModel_SMD_strength_reps")
 
 # Hypertrophy
 Data_SMD_hypertrophy_reps <- Data_SMD_hypertrophy %>%
   filter(!is.na(reps))
 
-MultiLevelModel_hypertrophy_reps <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_reps,
+MultiLevelModel_SMD_hypertrophy_reps <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_reps,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ reps, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ reps, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_reps, file = "models/MultiLevelModel_hypertrophy_reps")
+save(MultiLevelModel_SMD_hypertrophy_reps, file = "models/MultiLevelModel_SMD_hypertrophy_reps")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_reps$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_reps)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_reps)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_reps <- 100 * sum(MultiLevelModel_hypertrophy_reps$sigma2) / (sum(MultiLevelModel_hypertrophy_reps$sigma2) + (MultiLevelModel_hypertrophy_reps$k-MultiLevelModel_hypertrophy_reps$p)/sum(diag(P)))
-I2bw_hypertrophy_reps <- 100 * MultiLevelModel_hypertrophy_reps$sigma2 / (sum(MultiLevelModel_hypertrophy_reps$sigma2) + (MultiLevelModel_hypertrophy_reps$k-MultiLevelModel_hypertrophy_reps$p)/sum(diag(P)))
+I2_hypertrophy_reps <- 100 * sum(MultiLevelModel_SMD_hypertrophy_reps$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_reps$sigma2) + (MultiLevelModel_SMD_hypertrophy_reps$k-MultiLevelModel_SMD_hypertrophy_reps$p)/sum(diag(P)))
+I2bw_hypertrophy_reps <- 100 * MultiLevelModel_SMD_hypertrophy_reps$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_reps$sigma2) + (MultiLevelModel_SMD_hypertrophy_reps$k-MultiLevelModel_SMD_hypertrophy_reps$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_reps <- robust(MultiLevelModel_hypertrophy_reps, Data_SMD_hypertrophy_reps$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_reps <- robust(MultiLevelModel_SMD_hypertrophy_reps, Data_SMD_hypertrophy_reps$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_reps, file = "models/RobuEstMultiLevelModel_hypertrophy_reps")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_reps, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_reps")
 
 # logCVR
 Data_logCVR_reps <- Data_logCVR %>%
@@ -2155,7 +2883,7 @@ Data_logCVR_reps <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_reps <- rma.mv(yi, V=vi, data=subset(Data_logCVR_reps, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ reps, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ reps, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_reps, file = "models/MultiLevelModel_logCVR_strength_reps")
@@ -2175,7 +2903,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_reps, file = "models/RobuEstMultiLev
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_reps <- rma.mv(yi, V=vi, data=subset(Data_logCVR_reps, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ reps, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ reps, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_reps, file = "models/MultiLevelModel_logCVR_hypertrophy_reps")
@@ -2198,47 +2926,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_reps, file = "models/RobuEstMulti
 Data_SMD_strength_load <- Data_SMD_strength %>%
   filter(!is.na(load))
 
-MultiLevelModel_strength_load <- rma.mv(yi, V=vi, data=Data_SMD_strength_load,
+MultiLevelModel_SMD_strength_load <- rma.mv(yi, V=vi, data=Data_SMD_strength_load,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ load, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ load, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_load, file = "models/MultiLevelModel_strength_load")
+save(MultiLevelModel_SMD_strength_load, file = "models/MultiLevelModel_SMD_strength_load")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_load$vi)
-X <- model.matrix(MultiLevelModel_strength_load)
+X <- model.matrix(MultiLevelModel_SMD_strength_load)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_load <- 100 * sum(MultiLevelModel_strength_load$sigma2) / (sum(MultiLevelModel_strength_load$sigma2) + (MultiLevelModel_strength_load$k-MultiLevelModel_strength_load$p)/sum(diag(P)))
-I2bw_strength_load <- 100 * MultiLevelModel_strength_load$sigma2 / (sum(MultiLevelModel_strength_load$sigma2) + (MultiLevelModel_strength_load$k-MultiLevelModel_strength_load$p)/sum(diag(P)))
+I2_strength_load <- 100 * sum(MultiLevelModel_SMD_strength_load$sigma2) / (sum(MultiLevelModel_SMD_strength_load$sigma2) + (MultiLevelModel_SMD_strength_load$k-MultiLevelModel_SMD_strength_load$p)/sum(diag(P)))
+I2bw_strength_load <- 100 * MultiLevelModel_SMD_strength_load$sigma2 / (sum(MultiLevelModel_SMD_strength_load$sigma2) + (MultiLevelModel_SMD_strength_load$k-MultiLevelModel_SMD_strength_load$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_load <- robust(MultiLevelModel_strength_load, Data_SMD_strength_load$study)
+RobuEstMultiLevelModel_SMD_strength_load <- robust(MultiLevelModel_SMD_strength_load, Data_SMD_strength_load$study)
 
-save(RobuEstMultiLevelModel_strength_load, file = "models/RobuEstMultiLevelModel_strength_load")
+save(RobuEstMultiLevelModel_SMD_strength_load, file = "models/RobuEstMultiLevelModel_SMD_strength_load")
 
 # Hypertrophy
 Data_SMD_hypertrophy_load <- Data_SMD_hypertrophy %>%
   filter(!is.na(load))
 
-MultiLevelModel_hypertrophy_load <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_load,
+MultiLevelModel_SMD_hypertrophy_load <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_load,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ load, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ load, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_load, file = "models/MultiLevelModel_hypertrophy_load")
+save(MultiLevelModel_SMD_hypertrophy_load, file = "models/MultiLevelModel_SMD_hypertrophy_load")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_load$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_load)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_load)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_load <- 100 * sum(MultiLevelModel_hypertrophy_load$sigma2) / (sum(MultiLevelModel_hypertrophy_load$sigma2) + (MultiLevelModel_hypertrophy_load$k-MultiLevelModel_hypertrophy_load$p)/sum(diag(P)))
-I2bw_hypertrophy_load <- 100 * MultiLevelModel_hypertrophy_load$sigma2 / (sum(MultiLevelModel_hypertrophy_load$sigma2) + (MultiLevelModel_hypertrophy_load$k-MultiLevelModel_hypertrophy_load$p)/sum(diag(P)))
+I2_hypertrophy_load <- 100 * sum(MultiLevelModel_SMD_hypertrophy_load$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_load$sigma2) + (MultiLevelModel_SMD_hypertrophy_load$k-MultiLevelModel_SMD_hypertrophy_load$p)/sum(diag(P)))
+I2bw_hypertrophy_load <- 100 * MultiLevelModel_SMD_hypertrophy_load$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_load$sigma2) + (MultiLevelModel_SMD_hypertrophy_load$k-MultiLevelModel_SMD_hypertrophy_load$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_load <- robust(MultiLevelModel_hypertrophy_load, Data_SMD_hypertrophy_load$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_load <- robust(MultiLevelModel_SMD_hypertrophy_load, Data_SMD_hypertrophy_load$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_load, file = "models/RobuEstMultiLevelModel_hypertrophy_load")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_load, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_load")
 
 # logCVR
 Data_logCVR_load <- Data_logCVR %>%
@@ -2247,7 +2975,7 @@ Data_logCVR_load <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_load <- rma.mv(yi, V=vi, data=subset(Data_logCVR_load, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ load, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ load, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_load, file = "models/MultiLevelModel_logCVR_strength_load")
@@ -2267,7 +2995,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_load, file = "models/RobuEstMultiLev
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_load <- rma.mv(yi, V=vi, data=subset(Data_logCVR_load, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ load, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ load, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_load, file = "models/MultiLevelModel_logCVR_hypertrophy_load")
@@ -2290,47 +3018,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_load, file = "models/RobuEstMulti
 Data_SMD_strength_task_failure_y_n <- Data_SMD_strength %>%
   filter(!is.na(task_failure_y_n))
 
-MultiLevelModel_strength_task_failure_y_n <- rma.mv(yi, V=vi, data=Data_SMD_strength_task_failure_y_n,
+MultiLevelModel_SMD_strength_task_failure_y_n <- rma.mv(yi, V=vi, data=Data_SMD_strength_task_failure_y_n,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ task_failure_y_n - 1, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ task_failure_y_n - 1, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_task_failure_y_n, file = "models/MultiLevelModel_strength_task_failure_y_n")
+save(MultiLevelModel_SMD_strength_task_failure_y_n, file = "models/MultiLevelModel_SMD_strength_task_failure_y_n")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_task_failure_y_n$vi)
-X <- model.matrix(MultiLevelModel_strength_task_failure_y_n)
+X <- model.matrix(MultiLevelModel_SMD_strength_task_failure_y_n)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_task_failure_y_n <- 100 * sum(MultiLevelModel_strength_task_failure_y_n$sigma2) / (sum(MultiLevelModel_strength_task_failure_y_n$sigma2) + (MultiLevelModel_strength_task_failure_y_n$k-MultiLevelModel_strength_task_failure_y_n$p)/sum(diag(P)))
-I2bw_strength_task_failure_y_n <- 100 * MultiLevelModel_strength_task_failure_y_n$sigma2 / (sum(MultiLevelModel_strength_task_failure_y_n$sigma2) + (MultiLevelModel_strength_task_failure_y_n$k-MultiLevelModel_strength_task_failure_y_n$p)/sum(diag(P)))
+I2_strength_task_failure_y_n <- 100 * sum(MultiLevelModel_SMD_strength_task_failure_y_n$sigma2) / (sum(MultiLevelModel_SMD_strength_task_failure_y_n$sigma2) + (MultiLevelModel_SMD_strength_task_failure_y_n$k-MultiLevelModel_SMD_strength_task_failure_y_n$p)/sum(diag(P)))
+I2bw_strength_task_failure_y_n <- 100 * MultiLevelModel_SMD_strength_task_failure_y_n$sigma2 / (sum(MultiLevelModel_SMD_strength_task_failure_y_n$sigma2) + (MultiLevelModel_SMD_strength_task_failure_y_n$k-MultiLevelModel_SMD_strength_task_failure_y_n$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_task_failure_y_n <- robust(MultiLevelModel_strength_task_failure_y_n, Data_SMD_strength_task_failure_y_n$study)
+RobuEstMultiLevelModel_SMD_strength_task_failure_y_n <- robust(MultiLevelModel_SMD_strength_task_failure_y_n, Data_SMD_strength_task_failure_y_n$study)
 
-save(RobuEstMultiLevelModel_strength_task_failure_y_n, file = "models/RobuEstMultiLevelModel_strength_task_failure_y_n")
+save(RobuEstMultiLevelModel_SMD_strength_task_failure_y_n, file = "models/RobuEstMultiLevelModel_SMD_strength_task_failure_y_n")
 
 # Hypertrophy
 Data_SMD_hypertrophy_task_failure_y_n <- Data_SMD_hypertrophy %>%
   filter(!is.na(task_failure_y_n))
 
-MultiLevelModel_hypertrophy_task_failure_y_n <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_task_failure_y_n,
+MultiLevelModel_SMD_hypertrophy_task_failure_y_n <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_task_failure_y_n,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ task_failure_y_n - 1, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ task_failure_y_n - 1, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_task_failure_y_n, file = "models/MultiLevelModel_hypertrophy_task_failure_y_n")
+save(MultiLevelModel_SMD_hypertrophy_task_failure_y_n, file = "models/MultiLevelModel_SMD_hypertrophy_task_failure_y_n")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_task_failure_y_n$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_task_failure_y_n)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_task_failure_y_n)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_task_failure_y_n <- 100 * sum(MultiLevelModel_hypertrophy_task_failure_y_n$sigma2) / (sum(MultiLevelModel_hypertrophy_task_failure_y_n$sigma2) + (MultiLevelModel_hypertrophy_task_failure_y_n$k-MultiLevelModel_hypertrophy_task_failure_y_n$p)/sum(diag(P)))
-I2bw_hypertrophy_task_failure_y_n <- 100 * MultiLevelModel_hypertrophy_task_failure_y_n$sigma2 / (sum(MultiLevelModel_hypertrophy_task_failure_y_n$sigma2) + (MultiLevelModel_hypertrophy_task_failure_y_n$k-MultiLevelModel_hypertrophy_task_failure_y_n$p)/sum(diag(P)))
+I2_hypertrophy_task_failure_y_n <- 100 * sum(MultiLevelModel_SMD_hypertrophy_task_failure_y_n$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_task_failure_y_n$sigma2) + (MultiLevelModel_SMD_hypertrophy_task_failure_y_n$k-MultiLevelModel_SMD_hypertrophy_task_failure_y_n$p)/sum(diag(P)))
+I2bw_hypertrophy_task_failure_y_n <- 100 * MultiLevelModel_SMD_hypertrophy_task_failure_y_n$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_task_failure_y_n$sigma2) + (MultiLevelModel_SMD_hypertrophy_task_failure_y_n$k-MultiLevelModel_SMD_hypertrophy_task_failure_y_n$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_task_failure_y_n <- robust(MultiLevelModel_hypertrophy_task_failure_y_n, Data_SMD_hypertrophy_task_failure_y_n$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_task_failure_y_n <- robust(MultiLevelModel_SMD_hypertrophy_task_failure_y_n, Data_SMD_hypertrophy_task_failure_y_n$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_task_failure_y_n, file = "models/RobuEstMultiLevelModel_hypertrophy_task_failure_y_n")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_task_failure_y_n, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_task_failure_y_n")
 
 # logCVR
 Data_logCVR_task_failure_y_n <- Data_logCVR %>%
@@ -2339,7 +3067,7 @@ Data_logCVR_task_failure_y_n <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_task_failure_y_n <- rma.mv(yi, V=vi, data=subset(Data_logCVR_task_failure_y_n, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ task_failure_y_n - 1, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ task_failure_y_n - 1, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_task_failure_y_n, file = "models/MultiLevelModel_logCVR_strength_task_failure_y_n")
@@ -2359,7 +3087,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_task_failure_y_n, file = "models/Rob
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_task_failure_y_n <- rma.mv(yi, V=vi, data=subset(Data_logCVR_task_failure_y_n, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ task_failure_y_n - 1, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ task_failure_y_n - 1, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_task_failure_y_n, file = "models/MultiLevelModel_logCVR_hypertrophy_task_failure_y_n")
@@ -2382,47 +3110,47 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_task_failure_y_n, file = "models/
 Data_SMD_strength_measure <- Data_SMD_strength %>%
   filter(!is.na(measure))
 
-MultiLevelModel_strength_measure <- rma.mv(yi, V=vi, data=Data_SMD_strength_measure,
+MultiLevelModel_SMD_strength_measure <- rma.mv(yi, V=vi, data=Data_SMD_strength_measure,
                                           slab=paste(label),
-                                          random = list(~ 1 | study, ~ 1 | group), mods = ~ measure - 1, method="REML",
+                                          random = list(~ 1 | study, ~ 1 | arm), mods = ~ measure - 1, method="REML",
                                           control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_strength_measure, file = "models/MultiLevelModel_strength_measure")
+save(MultiLevelModel_SMD_strength_measure, file = "models/MultiLevelModel_SMD_strength_measure")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_strength_measure$vi)
-X <- model.matrix(MultiLevelModel_strength_measure)
+X <- model.matrix(MultiLevelModel_SMD_strength_measure)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_strength_measure <- 100 * sum(MultiLevelModel_strength_measure$sigma2) / (sum(MultiLevelModel_strength_measure$sigma2) + (MultiLevelModel_strength_measure$k-MultiLevelModel_strength_measure$p)/sum(diag(P)))
-I2bw_strength_measure <- 100 * MultiLevelModel_strength_measure$sigma2 / (sum(MultiLevelModel_strength_measure$sigma2) + (MultiLevelModel_strength_measure$k-MultiLevelModel_strength_measure$p)/sum(diag(P)))
+I2_strength_measure <- 100 * sum(MultiLevelModel_SMD_strength_measure$sigma2) / (sum(MultiLevelModel_SMD_strength_measure$sigma2) + (MultiLevelModel_SMD_strength_measure$k-MultiLevelModel_SMD_strength_measure$p)/sum(diag(P)))
+I2bw_strength_measure <- 100 * MultiLevelModel_SMD_strength_measure$sigma2 / (sum(MultiLevelModel_SMD_strength_measure$sigma2) + (MultiLevelModel_SMD_strength_measure$k-MultiLevelModel_SMD_strength_measure$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_strength_measure <- robust(MultiLevelModel_strength_measure, Data_SMD_strength_measure$study)
+RobuEstMultiLevelModel_SMD_strength_measure <- robust(MultiLevelModel_SMD_strength_measure, Data_SMD_strength_measure$study)
 
-save(RobuEstMultiLevelModel_strength_measure, file = "models/RobuEstMultiLevelModel_strength_measure")
+save(RobuEstMultiLevelModel_SMD_strength_measure, file = "models/RobuEstMultiLevelModel_SMD_strength_measure")
 
 # Hypertrophy
 Data_SMD_hypertrophy_measure <- Data_SMD_hypertrophy %>%
   filter(!is.na(measure))
 
-MultiLevelModel_hypertrophy_measure <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_measure,
+MultiLevelModel_SMD_hypertrophy_measure <- rma.mv(yi, V=vi, data=Data_SMD_hypertrophy_measure,
                                              slab=paste(label),
-                                             random = list(~ 1 | study, ~ 1 | group), mods = ~ measure - 1, method="REML",
+                                             random = list(~ 1 | study, ~ 1 | arm), mods = ~ measure - 1, method="REML",
                                              control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
-save(MultiLevelModel_hypertrophy_measure, file = "models/MultiLevelModel_hypertrophy_measure")
+save(MultiLevelModel_SMD_hypertrophy_measure, file = "models/MultiLevelModel_SMD_hypertrophy_measure")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
 W <- diag(1/Data_SMD_hypertrophy_measure$vi)
-X <- model.matrix(MultiLevelModel_hypertrophy_measure)
+X <- model.matrix(MultiLevelModel_SMD_hypertrophy_measure)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-I2_hypertrophy_measure <- 100 * sum(MultiLevelModel_hypertrophy_measure$sigma2) / (sum(MultiLevelModel_hypertrophy_measure$sigma2) + (MultiLevelModel_hypertrophy_measure$k-MultiLevelModel_hypertrophy_measure$p)/sum(diag(P)))
-I2bw_hypertrophy_measure <- 100 * MultiLevelModel_hypertrophy_measure$sigma2 / (sum(MultiLevelModel_hypertrophy_measure$sigma2) + (MultiLevelModel_hypertrophy_measure$k-MultiLevelModel_hypertrophy_measure$p)/sum(diag(P)))
+I2_hypertrophy_measure <- 100 * sum(MultiLevelModel_SMD_hypertrophy_measure$sigma2) / (sum(MultiLevelModel_SMD_hypertrophy_measure$sigma2) + (MultiLevelModel_SMD_hypertrophy_measure$k-MultiLevelModel_SMD_hypertrophy_measure$p)/sum(diag(P)))
+I2bw_hypertrophy_measure <- 100 * MultiLevelModel_SMD_hypertrophy_measure$sigma2 / (sum(MultiLevelModel_SMD_hypertrophy_measure$sigma2) + (MultiLevelModel_SMD_hypertrophy_measure$k-MultiLevelModel_SMD_hypertrophy_measure$p)/sum(diag(P)))
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_hypertrophy_measure <- robust(MultiLevelModel_hypertrophy_measure, Data_SMD_hypertrophy_measure$study)
+RobuEstMultiLevelModel_SMD_hypertrophy_measure <- robust(MultiLevelModel_SMD_hypertrophy_measure, Data_SMD_hypertrophy_measure$study)
 
-save(RobuEstMultiLevelModel_hypertrophy_measure, file = "models/RobuEstMultiLevelModel_hypertrophy_measure")
+save(RobuEstMultiLevelModel_SMD_hypertrophy_measure, file = "models/RobuEstMultiLevelModel_SMD_hypertrophy_measure")
 
 # logCVR
 Data_logCVR_measure <- Data_logCVR %>%
@@ -2431,7 +3159,7 @@ Data_logCVR_measure <- Data_logCVR %>%
 # Strength
 MultiLevelModel_logCVR_strength_measure <- rma.mv(yi, V=vi, data=subset(Data_logCVR_measure, outcome == "strength"),
                                                  slab=paste(label),
-                                                 random = list(~ 1 | study, ~ 1 | group), mods = ~ measure - 1, method="REML",
+                                                 random = list(~ 1 | study, ~ 1 | arm), mods = ~ measure - 1, method="REML",
                                                  control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_strength_measure, file = "models/MultiLevelModel_logCVR_strength_measure")
@@ -2451,7 +3179,7 @@ save(RobuEstMultiLevelModel_logCVR_strength_measure, file = "models/RobuEstMulti
 # Hypertrophy
 MultiLevelModel_logCVR_hypertrophy_measure <- rma.mv(yi, V=vi, data=subset(Data_logCVR_measure, outcome == "hypertrophy"),
                                                     slab=paste(label),
-                                                    random = list(~ 1 | study, ~ 1 | group), mods = ~ measure - 1, method="REML",
+                                                    random = list(~ 1 | study, ~ 1 | arm), mods = ~ measure - 1, method="REML",
                                                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
 
 save(MultiLevelModel_logCVR_hypertrophy_measure, file = "models/MultiLevelModel_logCVR_hypertrophy_measure")
@@ -2473,139 +3201,139 @@ save(RobuEstMultiLevelModel_logCVR_hypertrophy_measure, file = "models/RobuEstMu
 mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Model = "SMD",
                                     Moderator = "Main model",
-                                    Estimate = round(RobuEstMultiLevelModel_strength$b, 2),
-                                    Lower = round(RobuEstMultiLevelModel_strength$ci.lb, 2),
-                                    Upper = round(RobuEstMultiLevelModel_strength$ci.ub, 2),
-                                    `I2 study` = round(I2bw_strength, 2)[1],
-                                    `I2 group` = round(I2bw_strength, 2)[2]),
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_strength$b, 2),
+                                    Lower = round(RobuEstMultiLevelModel_SMD_strength$ci.lb, 2),
+                                    Upper = round(RobuEstMultiLevelModel_SMD_strength$ci.ub, 2),
+                                    `I2 study` = round(I2bw_SMD_strength, 2)[1],
+                                    `I2 arm` = round(I2bw_SMD_strength, 2)[2]),
                          data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = "TESTEX score",
-                                      Estimate = round(RobuEstMultiLevelModel_strength_TESTEX$b, 2)[2],
-                                      Lower = round(RobuEstMultiLevelModel_strength_TESTEX$ci.lb, 2)[2],
-                                      Upper = round(RobuEstMultiLevelModel_strength_TESTEX$ci.ub, 2)[2],
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_TESTEX$b, 2)[2],
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_TESTEX$ci.lb, 2)[2],
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_TESTEX$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_strength_TESTEX, 2)[1],
-                                    `I2 group` = round(I2bw_strength_TESTEX, 2)[2]),
+                                    `I2 arm` = round(I2bw_strength_TESTEX, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = "Age",
-                                      Estimate = round(RobuEstMultiLevelModel_strength_age$b, 2)[2],
-                                      Lower = round(RobuEstMultiLevelModel_strength_age$ci.lb, 2)[2],
-                                      Upper = round(RobuEstMultiLevelModel_strength_age$ci.ub, 2)[2],
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_age$b, 2)[2],
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_age$ci.lb, 2)[2],
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_age$ci.ub, 2)[2],
                                       `I2 study` = round(I2bw_strength_age, 2)[1],
-                                      `I2 group` = round(I2bw_strength_age, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_age, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = "Proportion Male",
-                                      Estimate = round(RobuEstMultiLevelModel_strength_sex_._male$b, 2)[2],
-                                      Lower = round(RobuEstMultiLevelModel_strength_sex_._male$ci.lb, 2)[2],
-                                      Upper = round(RobuEstMultiLevelModel_strength_sex_._male$ci.ub, 2)[2],
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_sex_._male$b, 2)[2],
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_sex_._male$ci.lb, 2)[2],
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_sex_._male$ci.ub, 2)[2],
                                       `I2 study` = round(I2bw_strength_sex_._male, 2)[1],
-                                      `I2 group` = round(I2bw_strength_sex_._male, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_sex_._male, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = "Weight",
-                                      Estimate = round(RobuEstMultiLevelModel_strength_weight$b, 2)[2],
-                                      Lower = round(RobuEstMultiLevelModel_strength_weight$ci.lb, 2)[2],
-                                      Upper = round(RobuEstMultiLevelModel_strength_weight$ci.ub, 2)[2],
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_weight$b, 2)[2],
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_weight$ci.lb, 2)[2],
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_weight$ci.ub, 2)[2],
                                       `I2 study` = round(I2bw_strength_weight, 2)[1],
-                                      `I2 group` = round(I2bw_strength_weight, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_weight, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = "BMI",
-                                      Estimate = round(RobuEstMultiLevelModel_strength_bmi$b, 2)[2],
-                                      Lower = round(RobuEstMultiLevelModel_strength_bmi$ci.lb, 2)[2],
-                                      Upper = round(RobuEstMultiLevelModel_strength_bmi$ci.ub, 2)[2],
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_bmi$b, 2)[2],
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_bmi$ci.lb, 2)[2],
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_bmi$ci.ub, 2)[2],
                                       `I2 study` = round(I2bw_strength_bmi, 2)[1],
-                                      `I2 group` = round(I2bw_strength_bmi, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_bmi, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = c("Training Status (trained)","Training Status (untrained)"),
-                                      Estimate = round(RobuEstMultiLevelModel_strength_train_status$b, 2),
-                                      Lower = round(RobuEstMultiLevelModel_strength_train_status$ci.lb, 2),
-                                      Upper = round(RobuEstMultiLevelModel_strength_train_status$ci.ub, 2),
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_train_status$b, 2),
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_train_status$ci.lb, 2),
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_train_status$ci.ub, 2),
                                       `I2 study` = round(I2bw_strength_train_status, 2)[1],
-                                      `I2 group` = round(I2bw_strength_train_status, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_train_status, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = c("Healthy Sample", "Clinical Sample"),
-                                      Estimate = round(RobuEstMultiLevelModel_strength_healthy_clinical$b, 2),
-                                      Lower = round(RobuEstMultiLevelModel_strength_healthy_clinical$ci.lb, 2),
-                                      Upper = round(RobuEstMultiLevelModel_strength_healthy_clinical$ci.ub, 2),
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_healthy_clinical$b, 2),
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_healthy_clinical$ci.lb, 2),
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_healthy_clinical$ci.ub, 2),
                                       `I2 study` = round(I2bw_strength_healthy_clinical, 2)[1],
-                                      `I2 group` = round(I2bw_strength_healthy_clinical, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_healthy_clinical, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = c("RT + Adjuvant Intervention", "RT Only Intervention"),
-                                      Estimate = round(RobuEstMultiLevelModel_strength_RT_only$b, 2),
-                                      Lower = round(RobuEstMultiLevelModel_strength_RT_only$ci.lb, 2),
-                                      Upper = round(RobuEstMultiLevelModel_strength_RT_only$ci.ub, 2),
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_RT_only$b, 2),
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_RT_only$ci.lb, 2),
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_RT_only$ci.ub, 2),
                                       `I2 study` = round(I2bw_strength_RT_only, 2)[1],
-                                      `I2 group` = round(I2bw_strength_RT_only, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_RT_only, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = "Duration (weeks)",
-                                      Estimate = round(RobuEstMultiLevelModel_strength_weeks$b, 2)[2],
-                                      Lower = round(RobuEstMultiLevelModel_strength_weeks$ci.lb, 2)[2],
-                                      Upper = round(RobuEstMultiLevelModel_strength_weeks$ci.ub, 2)[2],
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_weeks$b, 2)[2],
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_weeks$ci.lb, 2)[2],
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_weeks$ci.ub, 2)[2],
                                       `I2 study` = round(I2bw_strength_weeks, 2)[1],
-                                      `I2 group` = round(I2bw_strength_weeks, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_weeks, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = "Weekly Frequency",
-                                      Estimate = round(RobuEstMultiLevelModel_strength_freq$b, 2)[2],
-                                      Lower = round(RobuEstMultiLevelModel_strength_freq$ci.lb, 2)[2],
-                                      Upper = round(RobuEstMultiLevelModel_strength_freq$ci.ub, 2)[2],
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_freq$b, 2)[2],
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_freq$ci.lb, 2)[2],
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_freq$ci.ub, 2)[2],
                                       `I2 study` = round(I2bw_strength_freq, 2)[1],
-                                      `I2 group` = round(I2bw_strength_freq, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_freq, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = "Number of Exercises",
-                                      Estimate = round(RobuEstMultiLevelModel_strength_exercises$b, 2)[2],
-                                      Lower = round(RobuEstMultiLevelModel_strength_exercises$ci.lb, 2)[2],
-                                      Upper = round(RobuEstMultiLevelModel_strength_exercises$ci.ub, 2)[2],
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_exercises$b, 2)[2],
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_exercises$ci.lb, 2)[2],
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_exercises$ci.ub, 2)[2],
                                       `I2 study` = round(I2bw_strength_exercises, 2)[1],
-                                      `I2 group` = round(I2bw_strength_exercises, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_exercises, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = "Sets per Exercise",
-                                      Estimate = round(RobuEstMultiLevelModel_strength_sets_exercise$b, 2)[2],
-                                      Lower = round(RobuEstMultiLevelModel_strength_sets_exercise$ci.lb, 2)[2],
-                                      Upper = round(RobuEstMultiLevelModel_strength_sets_exercise$ci.ub, 2)[2],
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_sets_exercise$b, 2)[2],
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_sets_exercise$ci.lb, 2)[2],
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_sets_exercise$ci.ub, 2)[2],
                                       `I2 study` = round(I2bw_strength_sets_exercise, 2)[1],
-                                      `I2 group` = round(I2bw_strength_sets_exercise, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_sets_exercise, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = "Number of Repetitions",
-                                      Estimate = round(RobuEstMultiLevelModel_strength_reps$b, 2)[2],
-                                      Lower = round(RobuEstMultiLevelModel_strength_reps$ci.lb, 2)[2],
-                                      Upper = round(RobuEstMultiLevelModel_strength_reps$ci.ub, 2)[2],
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_reps$b, 2)[2],
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_reps$ci.lb, 2)[2],
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_reps$ci.ub, 2)[2],
                                       `I2 study` = round(I2bw_strength_reps, 2)[1],
-                                      `I2 group` = round(I2bw_strength_reps, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_reps, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = "Load (%1RM)",
-                                      Estimate = round(RobuEstMultiLevelModel_strength_load$b, 2)[2],
-                                      Lower = round(RobuEstMultiLevelModel_strength_load$ci.lb, 2)[2],
-                                      Upper = round(RobuEstMultiLevelModel_strength_load$ci.ub, 2)[2],
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_load$b, 2)[2],
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_load$ci.lb, 2)[2],
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_load$ci.ub, 2)[2],
                                       `I2 study` = round(I2bw_strength_load, 2)[1],
-                                      `I2 group` = round(I2bw_strength_load, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_load, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = c("Task Failure (No)", "Task Failure (Y)"),
-                                      Estimate = round(RobuEstMultiLevelModel_strength_task_failure_y_n$b, 2),
-                                      Lower = round(RobuEstMultiLevelModel_strength_task_failure_y_n$ci.lb, 2),
-                                      Upper = round(RobuEstMultiLevelModel_strength_task_failure_y_n$ci.ub, 2),
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_task_failure_y_n$b, 2),
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_task_failure_y_n$ci.lb, 2),
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_task_failure_y_n$ci.ub, 2),
                                       `I2 study` = round(I2bw_strength_task_failure_y_n, 2)[1],
-                                      `I2 group` = round(I2bw_strength_task_failure_y_n, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_task_failure_y_n, 2)[2]),
                            data.frame(Outcome = "strength",
                                       Model = "SMD",
                                       Moderator = c("Outcome Measure (12RM)","Outcome Measure (1RM)","Outcome Measure (3RM)","Outcome Measure (5RM)","Outcome Measure (6RM)","Outcome Measure (Isokinetic)", "Outcome Measure (Isometric)"),
-                                      Estimate = round(RobuEstMultiLevelModel_strength_measure$b, 2),
-                                      Lower = round(RobuEstMultiLevelModel_strength_measure$ci.lb, 2),
-                                      Upper = round(RobuEstMultiLevelModel_strength_measure$ci.ub, 2),
+                                      Estimate = round(RobuEstMultiLevelModel_SMD_strength_measure$b, 2),
+                                      Lower = round(RobuEstMultiLevelModel_SMD_strength_measure$ci.lb, 2),
+                                      Upper = round(RobuEstMultiLevelModel_SMD_strength_measure$ci.ub, 2),
                                       `I2 study` = round(I2bw_strength_measure, 2)[1],
-                                      `I2 group` = round(I2bw_strength_measure, 2)[2]),
+                                      `I2 arm` = round(I2bw_strength_measure, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = "Main model",
@@ -2613,7 +3341,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength$ci.lb, 2),
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength$ci.ub, 2),
                                     `I2 study` = round(I2bw_logCVR_strength, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = "TESTEX score",
@@ -2621,7 +3349,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_TESTEX$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_TESTEX$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_strength_TESTEX, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_TESTEX, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_TESTEX, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = "Age",
@@ -2629,7 +3357,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_age$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_age$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_strength_age, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_age, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_age, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = "Proportion Male",
@@ -2637,7 +3365,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_sex_._male$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_sex_._male$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_strength_sex_._male, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_sex_._male, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_sex_._male, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = "Weight",
@@ -2645,7 +3373,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_weight$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_weight$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_strength_weight, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_weight, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_weight, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = "BMI",
@@ -2653,7 +3381,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_bmi$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_bmi$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_strength_bmi, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_bmi, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_bmi, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = c("Training Status (trained)","Training Status (untrained)"),
@@ -2661,7 +3389,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_train_status$ci.lb, 2),
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_train_status$ci.ub, 2),
                                     `I2 study` = round(I2bw_logCVR_strength_train_status, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_train_status, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_train_status, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = c("Healthy Sample", "Clinical Sample"),
@@ -2669,7 +3397,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_healthy_clinical$ci.lb, 2),
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_healthy_clinical$ci.ub, 2),
                                     `I2 study` = round(I2bw_logCVR_strength_healthy_clinical, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_healthy_clinical, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_healthy_clinical, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = c("RT + Adjuvant Intervention", "RT Only Intervention"),
@@ -2677,7 +3405,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_RT_only$ci.lb, 2),
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_RT_only$ci.ub, 2),
                                     `I2 study` = round(I2bw_logCVR_strength_RT_only, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_RT_only, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_RT_only, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = "Duration (weeks)",
@@ -2685,7 +3413,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_weeks$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_weeks$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_strength_weeks, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_weeks, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_weeks, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = "Weekly Frequency",
@@ -2693,7 +3421,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_freq$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_freq$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_strength_freq, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_freq, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_freq, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = "Number of Exercises",
@@ -2701,7 +3429,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_exercises$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_exercises$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_strength_exercises, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_exercises, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_exercises, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = "Sets per Exercise",
@@ -2709,7 +3437,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_sets_exercise$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_sets_exercise$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_strength_sets_exercise, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_sets_exercise, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_sets_exercise, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = "Number of Repetitions",
@@ -2717,7 +3445,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_reps$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_reps$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_strength_reps, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_reps, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_reps, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = "Load (%1RM)",
@@ -2725,7 +3453,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_load$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_load$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_strength_load, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_load, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_load, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = c("Task Failure (No)", "Task Failure (Y)"),
@@ -2733,7 +3461,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_task_failure_y_n$ci.lb, 2),
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_task_failure_y_n$ci.ub, 2),
                                     `I2 study` = round(I2bw_logCVR_strength_task_failure_y_n, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_task_failure_y_n, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_task_failure_y_n, 2)[2]),
                          data.frame(Outcome = "strength",
                                     Model = "logCVR",
                                     Moderator = c("Outcome Measure (12RM)","Outcome Measure (1RM)","Outcome Measure (3RM)","Outcome Measure (5RM)","Outcome Measure (6RM)","Outcome Measure (Isokinetic)", "Outcome Measure (Isometric)"),
@@ -2741,143 +3469,143 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_strength_measure$ci.lb, 2),
                                     Upper = round(RobuEstMultiLevelModel_logCVR_strength_measure$ci.ub, 2),
                                     `I2 study` = round(I2bw_logCVR_strength_measure, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_strength_measure, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_strength_measure, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = "Main model",
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy$b, 2),
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy$ci.lb, 2),
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy$ci.ub, 2),
-                                    `I2 study` = round(I2bw_hypertrophy, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy, 2)[2]),
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy$b, 2),
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy$ci.lb, 2),
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy$ci.ub, 2),
+                                    `I2 study` = round(I2bw_SMD_hypertrophy, 2)[1],
+                                    `I2 arm` = round(I2bw_SMD_hypertrophy, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = "TESTEX score",
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_TESTEX$b, 2)[2],
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_TESTEX$ci.lb, 2)[2],
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_TESTEX$ci.ub, 2)[2],
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_TESTEX$b, 2)[2],
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_TESTEX$ci.lb, 2)[2],
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_TESTEX$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_hypertrophy_TESTEX, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_TESTEX, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_TESTEX, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = "Age",
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_age$b, 2)[2],
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_age$ci.lb, 2)[2],
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_age$ci.ub, 2)[2],
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_age$b, 2)[2],
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_age$ci.lb, 2)[2],
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_age$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_hypertrophy_age, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_age, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_age, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = "Proportion Male",
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_sex_._male$b, 2)[2],
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_sex_._male$ci.lb, 2)[2],
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_sex_._male$ci.ub, 2)[2],
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_sex_._male$b, 2)[2],
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_sex_._male$ci.lb, 2)[2],
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_sex_._male$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_hypertrophy_sex_._male, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_sex_._male, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_sex_._male, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = "Weight",
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_weight$b, 2)[2],
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_weight$ci.lb, 2)[2],
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_weight$ci.ub, 2)[2],
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_weight$b, 2)[2],
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_weight$ci.lb, 2)[2],
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_weight$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_hypertrophy_weight, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_weight, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_weight, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = "BMI",
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_bmi$b, 2)[2],
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_bmi$ci.lb, 2)[2],
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_bmi$ci.ub, 2)[2],
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_bmi$b, 2)[2],
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_bmi$ci.lb, 2)[2],
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_bmi$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_hypertrophy_bmi, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_bmi, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_bmi, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = c("Training Status (trained)","Training Status (untrained)"),
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_train_status$b, 2),
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_train_status$ci.lb, 2),
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_train_status$ci.ub, 2),
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_train_status$b, 2),
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_train_status$ci.lb, 2),
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_train_status$ci.ub, 2),
                                     `I2 study` = round(I2bw_hypertrophy_train_status, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_train_status, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_train_status, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = c("Healthy Sample", "Clinical Sample"),
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_healthy_clinical$b, 2),
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_healthy_clinical$ci.lb, 2),
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_healthy_clinical$ci.ub, 2),
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_healthy_clinical$b, 2),
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_healthy_clinical$ci.lb, 2),
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_healthy_clinical$ci.ub, 2),
                                     `I2 study` = round(I2bw_hypertrophy_healthy_clinical, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_healthy_clinical, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_healthy_clinical, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = c("RT + Adjuvant Intervention", "RT Only Intervention"),
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_RT_only$b, 2),
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_RT_only$ci.lb, 2),
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_RT_only$ci.ub, 2),
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_RT_only$b, 2),
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_RT_only$ci.lb, 2),
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_RT_only$ci.ub, 2),
                                     `I2 study` = round(I2bw_hypertrophy_RT_only, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_RT_only, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_RT_only, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = "Duration (weeks)",
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_weeks$b, 2)[2],
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_weeks$ci.lb, 2)[2],
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_weeks$ci.ub, 2)[2],
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_weeks$b, 2)[2],
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_weeks$ci.lb, 2)[2],
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_weeks$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_hypertrophy_weeks, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_weeks, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_weeks, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = "Weekly Frequency",
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_freq$b, 2)[2],
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_freq$ci.lb, 2)[2],
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_freq$ci.ub, 2)[2],
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_freq$b, 2)[2],
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_freq$ci.lb, 2)[2],
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_freq$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_hypertrophy_freq, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_freq, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_freq, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = "Number of Exercises",
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_exercises$b, 2)[2],
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_exercises$ci.lb, 2)[2],
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_exercises$ci.ub, 2)[2],
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_exercises$b, 2)[2],
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_exercises$ci.lb, 2)[2],
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_exercises$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_hypertrophy_exercises, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_exercises, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_exercises, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = "Sets per Exercise",
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_sets_exercise$b, 2)[2],
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_sets_exercise$ci.lb, 2)[2],
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_sets_exercise$ci.ub, 2)[2],
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_sets_exercise$b, 2)[2],
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_sets_exercise$ci.lb, 2)[2],
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_sets_exercise$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_hypertrophy_sets_exercise, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_sets_exercise, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_sets_exercise, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = "Number of Repetitions",
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_reps$b, 2)[2],
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_reps$ci.lb, 2)[2],
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_reps$ci.ub, 2)[2],
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_reps$b, 2)[2],
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_reps$ci.lb, 2)[2],
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_reps$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_hypertrophy_reps, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_reps, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_reps, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = "Load (%1RM)",
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_load$b, 2)[2],
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_load$ci.lb, 2)[2],
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_load$ci.ub, 2)[2],
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_load$b, 2)[2],
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_load$ci.lb, 2)[2],
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_load$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_hypertrophy_load, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_load, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_load, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = c("Task Failure (No)", "Task Failure (Y)"),
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_task_failure_y_n$b, 2),
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_task_failure_y_n$ci.lb, 2),
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_task_failure_y_n$ci.ub, 2),
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_task_failure_y_n$b, 2),
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_task_failure_y_n$ci.lb, 2),
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_task_failure_y_n$ci.ub, 2),
                                     `I2 study` = round(I2bw_hypertrophy_task_failure_y_n, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_task_failure_y_n, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_task_failure_y_n, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "SMD",
                                     Moderator = c("Outcome Measure (BIA)","Outcome Measure (Biopsy: Type i)","Outcome Measure (Biopsy: Type ii)","Outcome Measure (Biopsy: Type iia)","Outcome Measure (Biopsy: Type iib)","Outcome Measure (BodPod)", "Outcome Measure (Circumference)","Outcome Measure (CT)","Outcome Measure (DXA)","Outcome Measure (Hydrostatic Weighing)","Outcome Measure (MRI)","Outcome Measure (Skinfold)","Outcome Measure (US)"),
-                                    Estimate = round(RobuEstMultiLevelModel_hypertrophy_measure$b, 2),
-                                    Lower = round(RobuEstMultiLevelModel_hypertrophy_measure$ci.lb, 2),
-                                    Upper = round(RobuEstMultiLevelModel_hypertrophy_measure$ci.ub, 2),
+                                    Estimate = round(RobuEstMultiLevelModel_SMD_hypertrophy_measure$b, 2),
+                                    Lower = round(RobuEstMultiLevelModel_SMD_hypertrophy_measure$ci.lb, 2),
+                                    Upper = round(RobuEstMultiLevelModel_SMD_hypertrophy_measure$ci.ub, 2),
                                     `I2 study` = round(I2bw_hypertrophy_measure, 2)[1],
-                                    `I2 group` = round(I2bw_hypertrophy_measure, 2)[2]),
+                                    `I2 arm` = round(I2bw_hypertrophy_measure, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = "Main model",
@@ -2885,7 +3613,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy$ci.lb, 2),
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy$ci.ub, 2),
                                     `I2 study` = round(I2bw_logCVR_hypertrophy, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = "TESTEX score",
@@ -2893,7 +3621,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_TESTEX$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_TESTEX$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_TESTEX, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_TESTEX, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_TESTEX, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = "Age",
@@ -2901,7 +3629,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_age$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_age$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_age, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_age, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_age, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = "Proportion Male",
@@ -2909,7 +3637,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_sex_._male$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_sex_._male$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_sex_._male, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_sex_._male, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_sex_._male, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = "Weight",
@@ -2917,7 +3645,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_weight$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_weight$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_weight, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_weight, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_weight, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = "BMI",
@@ -2925,7 +3653,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_bmi$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_bmi$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_bmi, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_bmi, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_bmi, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = c("Training Status (trained)","Training Status (untrained)"),
@@ -2933,7 +3661,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_train_status$ci.lb, 2),
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_train_status$ci.ub, 2),
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_train_status, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_train_status, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_train_status, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = c("Healthy Sample", "Clinical Sample"),
@@ -2941,7 +3669,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_healthy_clinical$ci.lb, 2),
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_healthy_clinical$ci.ub, 2),
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_healthy_clinical, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_healthy_clinical, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_healthy_clinical, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = c("RT + Adjuvant Intervention", "RT Only Intervention"),
@@ -2949,7 +3677,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_RT_only$ci.lb, 2),
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_RT_only$ci.ub, 2),
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_RT_only, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_RT_only, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_RT_only, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = "Duration (weeks)",
@@ -2957,7 +3685,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_weeks$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_weeks$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_weeks, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_weeks, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_weeks, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = "Weekly Frequency",
@@ -2965,7 +3693,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_freq$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_freq$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_freq, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_freq, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_freq, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = "Number of Exercises",
@@ -2973,7 +3701,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_exercises$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_exercises$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_exercises, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_exercises, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_exercises, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = "Sets per Exercise",
@@ -2981,7 +3709,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_sets_exercise$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_sets_exercise$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_sets_exercise, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_sets_exercise, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_sets_exercise, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = "Number of Repetitions",
@@ -2989,7 +3717,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_reps$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_reps$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_reps, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_reps, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_reps, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = "Load (%1RM)",
@@ -2997,7 +3725,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_load$ci.lb, 2)[2],
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_load$ci.ub, 2)[2],
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_load, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_load, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_load, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = c("Task Failure (No)", "Task Failure (Y)"),
@@ -3005,7 +3733,7 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_task_failure_y_n$ci.lb, 2),
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_task_failure_y_n$ci.ub, 2),
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_task_failure_y_n, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_task_failure_y_n, 2)[2]),
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_task_failure_y_n, 2)[2]),
                          data.frame(Outcome = "hypertrophy",
                                     Model = "logCVR",
                                     Moderator = c("Outcome Measure (BIA)","Outcome Measure (Biopsy: Type i)","Outcome Measure (Biopsy: Type ii)","Outcome Measure (Biopsy: Type iia)","Outcome Measure (Biopsy: Type iib)","Outcome Measure (BodPod)", "Outcome Measure (Circumference)","Outcome Measure (CT)","Outcome Measure (DXA)","Outcome Measure (Hydrostatic Weighing)","Outcome Measure (MRI)","Outcome Measure (Skinfold)","Outcome Measure (US)"),
@@ -3013,15 +3741,12 @@ mods_SMD_logCVR <- rbind(data.frame(Outcome = "strength",
                                     Lower = round(RobuEstMultiLevelModel_logCVR_hypertrophy_measure$ci.lb, 2),
                                     Upper = round(RobuEstMultiLevelModel_logCVR_hypertrophy_measure$ci.ub, 2),
                                     `I2 study` = round(I2bw_logCVR_hypertrophy_measure, 2)[1],
-                                    `I2 group` = round(I2bw_logCVR_hypertrophy_measure, 2)[2])
+                                    `I2 arm` = round(I2bw_logCVR_hypertrophy_measure, 2)[2])
                            ) 
 
 rownames(mods_SMD_logCVR) <- NULL
 
 save(mods_SMD_logCVR, file = "models/mods_SMD_logCVR")
-
-library(kableExtra)               
-library(webshot)
 
 mods_SMD_logCVR <- mods_SMD_logCVR[,-c(1,2)]
 
@@ -3048,8 +3773,8 @@ webshot("models/table_mods_SMD_logCVR.html", "models/table_mods_SMD_logCVR.pdf")
 #### Galaxy plot
 
 Data_SMD_logCVR <- Data_SMD %>%
-  select(study, group, es, yi, vi) %>%
-  left_join(Data_logCVR, by = c("study", "group", "es")) %>%
+  select(study, arm, es, yi, vi) %>%
+  left_join(Data_logCVR, by = c("study", "arm", "es")) %>%
   filter(!is.na(yi.x) & !is.na(yi.y)) 
 
 SMD_v_logCVR_plot <- ggplot(data = Data_SMD_logCVR, aes(x=yi.x, y=yi.y, color = outcome)) +
@@ -3069,9 +3794,3 @@ save(SMD_v_logCVR_plot, file = "plots/SMD_v_logCVR_plot")
 SMD_v_logCVR_plot
 
 ggsave("plots/SMD_v_logCVR_plot.tiff", width = 7.5, height = 5, device = "tiff", dpi = 300)
-
-
-
-
-load(here("models","RobuEstMultiLevelModel_logCVR_strength"))
-RobuEstMultiLevelModel_logCVR_strength$beta
