@@ -87,7 +87,7 @@ Data <- escalc(measure = "ZCOR", ri = RT_ri, ni = RT_n, data = Data)
 Meta_RT_ri <- rma.mv(yi, V=vi, data=Data,
                      slab=paste(label),
                      random = list(~ 1 | study, ~ 1 | arm), method="REML",
-                     control=list(optimizer="optim", optmethod="Nelder-Mead"))
+                     control=list(optimizer="optim", optmethod="Nelder-Mead")) # probably need to use improved inference methods - I meant to use t-distrubution rather than z-distrubution to test the significance of individual model cefficients
 
 RobuEstMeta_RT_ri <- robust(Meta_RT_ri, Data$study)
 
