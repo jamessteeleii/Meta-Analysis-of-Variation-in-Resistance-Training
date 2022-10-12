@@ -84,11 +84,26 @@ Data$CON_ri <- ifelse(between(Data$CON_ri,-1,1) == FALSE, NA, Data$CON_ri)
 # Then we'll convert using Fishers r to z, calculate a meta-analytic point estimate, and impute that across the studies with missing correlations
 Data <- escalc(measure = "ZCOR", ri = RT_ri, ni = RT_n, data = Data)
 
+#####################
+#Yefeng's comment1:
+#Given that each row is not a different study (multiple effects size with studies),
+#both Shinichi and I would strongly suggest to add '~ 1 | es' as a random effect in all the models.
+#'~ 1 | es' is to account for observational level heterogeneity - residual heterogeneity, 
+#otherwise, we are assuming that effects with studies are homogeneous,
+# which is a quite strong assumption
+#####################
 Meta_RT_ri <- rma.mv(yi, V=vi, data=Data,
                      slab=paste(label),
                      random = list(~ 1 | study, ~ 1 | arm), method="REML",
                      control=list(optimizer="optim", optmethod="Nelder-Mead")) # probably need to use improved inference methods - I meant to use t-distrubution rather than z-distrubution to test the significance of individual model cefficients
 
+#####################
+#Yefeng's comment2:
+#Another potential issue is that some studies included in the dataset involve multiple-treatment designs (variable 'arm' you used), 
+#which leads to statistical dependent sampling errors because some individuals (or subjects) are repeatedly used 
+#when calculating effect sizes. But this is fine because you used the robust variance estimation (robust() function) to
+#adjust standard error (so-called 'cluster-robust error') and the subsequent hypothesis tests will work well
+#####################
 RobuEstMeta_RT_ri <- robust(Meta_RT_ri, Data$study)
 
 z2r_RT <- psych::fisherz2r(RobuEstMeta_RT_ri$b[1])
@@ -142,6 +157,13 @@ MultiLevelModel_SMD_strength <- rma.mv(yi, V=vi, data=Data_SMD_strength,
 save(MultiLevelModel_SMD_strength, file = "models/MultiLevelModel_SMD_strength")
 
 ### Calculate I^2 for see "http://www.metafor-project.org/doku.php/tips:i2_multilevel_multivariate"
+#####################
+#Yefeng's comment3:
+#An other option is to use orchaRd package to easily calculate I2 for multilevel model.
+#library(orchaRd) # installation see https://github.com/daniel1noble/orchaRd
+#orchaRd::i2_ml(MultiLevelModel_SMD_strength)
+#####################
+
 W <- diag(1/Data_SMD_strength$vi)
 X <- model.matrix(MultiLevelModel_SMD_strength)
 P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
@@ -291,6 +313,14 @@ ggsave("plots/forest_SMD_plots.tiff", width = 10, height = 10, device = "tiff", 
 
 ### Response ratio difference effect size calculations 
 # Adapting Morris et al., (2007) L_i; see https://figshare.com/articles/dataset/Appendix_B_Effect_sizes_and_their_sampling_variances_/3527621?backTo=/collections/DIRECT_AND_INTERACTIVE_EFFECTS_OF_ENEMIES_AND_MUTUALISTS_ON_PLANT_PERFORMANCE_A_META-ANALYSIS/3299699
+
+#####################
+#Yefeng's comment4:
+#The model you fitted below - 'MultiLevelModel_RR_strength' has unsual heterogeneity estimates. Both between-study and arm-specific heterogeneity are 0. 
+#I discussed this with Shinichi. He thought the formula you used to calculate lnRRs and their sampling variances are probably wrong.
+#I checked your formula - point estimates ('lnRR_yi') are correct, but the sampling variances ('lnRR_vi') seem not correct, see the formula in the follow paper
+#Lajeunesse M J. On the meta‐analysis of response ratios for studies with correlated and multi‐group designs[J]. Ecology, 2011, 92(11): 2049-2055.
+#####################
 
 Data$lnRR_yi <- log(Data$RT_post_m/Data$RT_pre_m) - log(Data$CON_post_m/Data$CON_pre_m)
 Data$lnRR_vi <- (Data$CON_post_sd/Data$CON_post_m*Data$CON_n) + (Data$CON_pre_sd/Data$CON_pre_m*Data$CON_n) +(Data$CON_post_sd/Data$CON_post_m*Data$CON_n) + (Data$CON_pre_sd/Data$CON_pre_m*Data$CON_n)
