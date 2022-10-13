@@ -89,7 +89,7 @@ Data <- escalc(measure = "ZCOR", ri = RT_ri, ni = RT_n, data = Data)
 #Given that each row is not a different study (multiple effects size with studies),
 #both Shinichi and I would strongly suggest to add '~ 1 | es' as a random effect in all the models.
 #'~ 1 | es' is to account for observational level heterogeneity - residual heterogeneity, 
-#otherwise, we are assuming that effects with studies are homogeneous,
+#otherwise, we are assuming that effects within studies are homogeneous,
 # which is a quite strong assumption
 #####################
 Meta_RT_ri <- rma.mv(yi, V=vi, data=Data,
