@@ -18,6 +18,7 @@ library(patchwork)
 library(europepmc)
 library(kableExtra)               
 library(webshot)
+library(ggtext)
 
 ##### Trend of Meta-Analysis in Resistance Training
 
@@ -171,12 +172,11 @@ I2_SMD_strength_lab <- data.frame(level = c("study", "arm", "es"),
 forest_SMD_strength <- Data_SMD_strength %>% 
   mutate(es = factor(es, levels = es[order(yi)]),
          se = sqrt(vi)) %>%
-  ggplot(aes(x=yi, y=es)) +
+  ggplot(aes(x=yi, y=fct_rev(es))) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_point(size=0.5, alpha=0.25) +
   scale_x_continuous(limits = c(-2,7.5), breaks = c(-1,0,1,2,3,4,5,6)) +
   geom_linerange(aes(xmin = yi - (se*1.96), xmax = yi + (se*1.96)), alpha=0.25) +
-  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
   geom_text(data = mutate_if(PI_SMD_strength,
                              is.numeric, round, 2),
             aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
@@ -184,9 +184,12 @@ forest_SMD_strength <- Data_SMD_strength %>%
   geom_text(data = PI_SMD_strength,
             aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
                 x = 5, y = 90), hjust = "centre", size = 3) +
-  geom_text(data = I2_SMD_strength_lab,
-            aes(label = glue::glue("I^2 [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
-                x = 5, y = 70), hjust = "centre", size = 3) +
+  geom_richtext(data = I2_SMD_strength_lab,
+            aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
+                x = 5, y = 70), size = 3,
+            fill = NA, label.color = NA, # remove background and outline
+            label.padding = grid::unit(rep(0, 4), "pt") # remove padding
+  ) +
   geom_segment(data = PI_SMD_strength, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub), 
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
   geom_polygon(data=diamond_SMD_strength, aes(x=x,y=y)) +
@@ -196,7 +199,8 @@ forest_SMD_strength <- Data_SMD_strength %>%
   theme_classic() +
   theme(axis.text.y = element_blank(),
         axis.ticks.y = element_blank(),
-        axis.line.y = element_blank())
+        axis.line.y = element_blank(),
+        )
 
 save(forest_SMD_strength, file = "plots/forest_SMD_strength")
 
@@ -240,12 +244,11 @@ I2_SMD_hypertrophy_lab <- data.frame(level = c("study", "arm", "es"),
 forest_SMD_hypertrophy <- Data_SMD_hypertrophy %>% 
   mutate(es = factor(es, levels = es[order(yi)]),
          se = sqrt(vi)) %>%
-  ggplot(aes(x=yi, y=es)) +
+  ggplot(aes(x=yi, y=fct_rev(es))) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_point(size=0.5, alpha=0.25) +
   scale_x_continuous(limits = c(-2,7.5), breaks = c(-1,0,1,2,3,4,5,6)) +
   geom_linerange(aes(xmin = yi - (se*1.96), xmax = yi + (se*1.96)), alpha=0.25) +
-  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
   geom_text(data = mutate_if(PI_SMD_hypertrophy,
                              is.numeric, round, 2),
             aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
@@ -253,9 +256,12 @@ forest_SMD_hypertrophy <- Data_SMD_hypertrophy %>%
   geom_text(data = PI_SMD_hypertrophy,
             aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
                 x = 5, y = 90), hjust = "centre", size = 3) +
-  geom_text(data = I2_SMD_hypertrophy_lab,
-            aes(label = glue::glue("I^2 [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
-                x = 5, y = 70), hjust = "centre", size = 3) +
+  geom_richtext(data = I2_SMD_hypertrophy_lab,
+            aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
+                x = 5, y = 70), size = 3,
+            fill = NA, label.color = NA, # remove background and outline
+            label.padding = grid::unit(rep(0, 4), "pt") # remove padding
+  ) +
   geom_segment(data = PI_SMD_hypertrophy, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub), 
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
   geom_polygon(data=diamond_SMD_hypertrophy, aes(x=x,y=y)) +
@@ -283,6 +289,7 @@ ggsave("plots/forest_SMD_plots.tiff", width = 10, height = 10, device = "tiff", 
 ###### Comparison of response ratios between RT and CON ######
 
 ### Response ratio difference effect size calculations 
+# Following Lajuenesse (2011; 2015) for the interaction effect of a group * time factorial design
 
 Data$lnRR_yi <- log(Data$RT_post_m/Data$RT_pre_m) - log(Data$CON_post_m/Data$CON_pre_m)
 
@@ -330,12 +337,11 @@ I2_RR_strength_lab <- data.frame(level = c("study", "arm", "es"),
 forest_RR_strength <- Data_RR_strength %>% 
   mutate(es = factor(es, levels = es[order(lnRR_yi)]),
          se = sqrt(lnRR_vi)) %>%
-  ggplot(aes(x=(exp(lnRR_yi)-1)*100, y=es)) +
+  ggplot(aes(x=(exp(lnRR_yi)-1)*100, y=fct_rev(es))) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_point(size=0.5, alpha=0.25) +
   # scale_x_continuous(limits = c(-20,40), breaks = c(-20,-10,0,10,20,30,40)) +
   geom_linerange(aes(xmin = (exp(lnRR_yi)-1)*100 - (se*1.96), xmax = (exp(lnRR_yi)-1)*100 + (se*1.96)), alpha=0.25) +
-  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
   geom_text(data = mutate_if(PI_RR_strength,
                              is.numeric, round, 2),
             aes(label = glue::glue("Overall Estimate = {round((exp(pred)-1)*100,2)} [95% Confidence Interval: {round((exp(ci.lb)-1)*100,2)} to {round((exp(ci.ub)-1)*100,2)}]"),
@@ -343,9 +349,12 @@ forest_RR_strength <- Data_RR_strength %>%
   geom_text(data = PI_RR_strength,
             aes(label = glue::glue("[95% Prediction Interval: {round((exp(pi.lb)-1)*100,2)} to {round((exp(pi.ub)-1)*100,2)}]"),
                 x = 100, y = 90), hjust = "centre", size = 3) +
-  geom_text(data = I2_RR_strength_lab,
-            aes(label = glue::glue("I^2 [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
-                x = 100, y = 70), hjust = "centre", size = 3) +
+  geom_richtext(data = I2_RR_strength_lab,
+            aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
+                x = 100, y = 70), size = 3,
+            fill = NA, label.color = NA, # remove background and outline
+            label.padding = grid::unit(rep(0, 4), "pt") # remove padding
+  ) +
   geom_segment(data = PI_RR_strength, aes(y=-15, yend=-15, x=(exp(pi.lb)-1)*100, xend=(exp(pi.ub)-1)*100),
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
   geom_polygon(data=diamond_RR_strength, aes(x=(exp(x)-1)*100,y=y)) +
@@ -400,12 +409,11 @@ I2_RR_hypertrophy_lab <- data.frame(level = c("study", "arm", "es"),
 forest_RR_hypertrophy <- Data_RR_hypertrophy %>% 
   mutate(es = factor(es, levels = es[order(lnRR_yi)]),
          se = sqrt(lnRR_vi)) %>%
-  ggplot(aes(x=(exp(lnRR_yi)-1)*100, y=es)) +
+  ggplot(aes(x=(exp(lnRR_yi)-1)*100, y=fct_rev(es))) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_point(size=0.5, alpha=0.25) +
   # scale_x_continuous(limits = c(-20,40), breaks = c(-20,-10,0,10,20,30,40)) +
   geom_linerange(aes(xmin = (exp(lnRR_yi)-1)*100 - (se*1.96), xmax = (exp(lnRR_yi)-1)*100 + (se*1.96)), alpha=0.25) +
-  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
   geom_text(data = mutate_if(PI_RR_hypertrophy,
                              is.numeric, round, 2),
             aes(label = glue::glue("Overall Estimate = {round((exp(pred)-1)*100,2)} [95% Confidence Interval: {round((exp(ci.lb)-1)*100,2)} to {round((exp(ci.ub)-1)*100,2)}]"),
@@ -413,9 +421,12 @@ forest_RR_hypertrophy <- Data_RR_hypertrophy %>%
   geom_text(data = PI_RR_hypertrophy,
             aes(label = glue::glue("[95% Prediction Interval: {round((exp(pi.lb)-1)*100,2)} to {round((exp(pi.ub)-1)*100,2)}]"),
                 x = 40, y = 90), hjust = "centre", size = 3) +
-  geom_text(data = I2_RR_hypertrophy_lab,
-            aes(label = glue::glue("I^2 [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
-                x = 40, y = 70), hjust = "centre", size = 3) +
+  geom_richtext(data = I2_RR_hypertrophy_lab,
+            aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
+                x = 40, y = 70), size = 3,
+            fill = NA, label.color = NA, # remove background and outline
+            label.padding = grid::unit(rep(0, 4), "pt") # remove padding
+  ) +
   geom_segment(data = PI_RR_hypertrophy, aes(y=-15, yend=-15, x=(exp(pi.lb)-1)*100, xend=(exp(pi.ub)-1)*100),
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
   geom_polygon(data=diamond_RR_hypertrophy, aes(x=(exp(x)-1)*100,y=y)) +
@@ -489,11 +500,10 @@ I2_SDir_strength_lab <- data.frame(level = c("study", "arm", "es"),
 # Plot
 forest_SDir_strength <- Data_SDir_strength %>% 
   mutate(es = factor(es, levels = es[order(SDir)])) %>%
-  ggplot(aes(x=SDir, y=es)) +
+  ggplot(aes(x=SDir, y=fct_rev(es))) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_point(size=0.5, alpha=0.25) +
   geom_linerange(aes(xmin = SDir - (SDir_se*1.96), xmax = SDir + (SDir_se*1.96)), alpha=0.25) +
-  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
   geom_text(data = mutate_if(PI_SDir_strength,
                              is.numeric, round, 2),
             aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
@@ -501,9 +511,12 @@ forest_SDir_strength <- Data_SDir_strength %>%
   geom_text(data = PI_SDir_strength,
             aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
                 x = 500000, y = 90), hjust = "centre", size = 3) +
-  geom_text(data = I2_SDir_strength_lab,
-            aes(label = glue::glue("I^2 [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
-                x = 500000, y = 70), hjust = "centre", size = 3) +
+  geom_richtext(data = I2_SDir_strength_lab,
+            aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
+                x = 500000, y = 70), size = 3,
+            fill = NA, label.color = NA, # remove background and outline
+            label.padding = grid::unit(rep(0, 4), "pt") # remove padding
+  ) +
   geom_segment(data = PI_SDir_strength, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub), 
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
   geom_polygon(data=diamond_SDir_strength, aes(x=x,y=y)) +
@@ -556,11 +569,10 @@ I2_SDir_hypertrophy_lab <- data.frame(level = c("study", "arm", "es"),
 # Plot
 forest_SDir_hypertrophy <- Data_SDir_hypertrophy %>% 
   mutate(es = factor(es, levels = es[order(SDir)])) %>%
-  ggplot(aes(x=SDir, y=es)) +
+  ggplot(aes(x=SDir, y=fct_rev(es))) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_point(size=0.5, alpha=0.25) +
   geom_linerange(aes(xmin = SDir - (SDir_se*1.96), xmax = SDir + (SDir_se*1.96)), alpha=0.25) +
-  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
   geom_text(data = mutate_if(PI_SDir_hypertrophy,
                              is.numeric, round, 2),
             aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
@@ -568,9 +580,12 @@ forest_SDir_hypertrophy <- Data_SDir_hypertrophy %>%
   geom_text(data = PI_SDir_hypertrophy,
             aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
                 x = 4e+06, y = 90), hjust = "centre", size = 3) +
-  geom_text(data = I2_SDir_hypertrophy_lab,
-            aes(label = glue::glue("I^2 [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
-                x = 4e+06, y = 70), hjust = "centre", size = 3) +
+  geom_richtext(data = I2_SDir_hypertrophy_lab,
+            aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
+                x = 4e+06, y = 70), size = 3,
+            fill = NA, label.color = NA, # remove background and outline
+            label.padding = grid::unit(rep(0, 4), "pt") # remove padding
+  ) +
   geom_segment(data = PI_SDir_hypertrophy, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub), 
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
   geom_polygon(data=diamond_SDir_hypertrophy, aes(x=x,y=y)) +
@@ -640,12 +655,11 @@ I2_logVR_strength_lab <- data.frame(level = c("study", "arm", "es"),
 forest_logVR_strength <- Data_logVR_strength %>% 
   mutate(es = factor(es, levels = es[order(yi)]),
          se = sqrt(vi)) %>%
-  ggplot(aes(x=yi, y=es)) +
+  ggplot(aes(x=yi, y=fct_rev(es))) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_point(size=0.5, alpha=0.25) +
   scale_x_continuous(limits = c(-4,6), breaks = c(-3,-2,-1,0,1,2,3,4,5,6)) +
   geom_linerange(aes(xmin = yi - (se*1.96), xmax = yi + (se*1.96)), alpha=0.25) +
-  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
   geom_text(data = mutate_if(PI_logVR_strength,
                              is.numeric, round, 2),
             aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
@@ -653,9 +667,12 @@ forest_logVR_strength <- Data_logVR_strength %>%
   geom_text(data = PI_logVR_strength,
             aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
                 x = 4.5, y = 90), hjust = "centre", size = 3) +
-  geom_text(data = I2_logVR_strength_lab,
-            aes(label = glue::glue("I^2 [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
-                x = 4.5, y = 70), hjust = "centre", size = 3) +
+  geom_richtext(data = I2_logVR_strength_lab,
+            aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
+                x = 4.5, y = 70), size = 3,
+            fill = NA, label.color = NA, # remove background and outline
+            label.padding = grid::unit(rep(0, 4), "pt") # remove padding
+  ) +
   geom_segment(data = PI_logVR_strength, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub),
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
   geom_polygon(data=diamond_logVR_strength, aes(x=x,y=y)) +
@@ -709,12 +726,11 @@ I2_logVR_hypertrophy_lab <- data.frame(level = c("study", "arm", "es"),
 forest_logVR_hypertrophy <- Data_logVR_hypertrophy %>% 
   mutate(es = factor(es, levels = es[order(yi)]),
          se = sqrt(vi)) %>%
-  ggplot(aes(x=yi, y=es)) +
+  ggplot(aes(x=yi, y=fct_rev(es))) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_point(size=0.5, alpha=0.25) +
   scale_x_continuous(limits = c(-4,6), breaks = c(-3,-2,-1,0,1,2,3,4,5,6)) +
   geom_linerange(aes(xmin = yi - (se*1.96), xmax = yi + (se*1.96)), alpha=0.25) +
-  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
   geom_text(data = mutate_if(PI_logVR_hypertrophy,
                              is.numeric, round, 2),
             aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
@@ -722,9 +738,12 @@ forest_logVR_hypertrophy <- Data_logVR_hypertrophy %>%
   geom_text(data = PI_logVR_hypertrophy,
             aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
                 x = 4.5, y = 90), hjust = "centre", size = 3) +
-  geom_text(data = I2_logVR_hypertrophy_lab,
-            aes(label = glue::glue("I^2 [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
-                x = 4.5, y = 70), hjust = "centre", size = 3) +
+  geom_richtext(data = I2_logVR_hypertrophy_lab,
+            aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
+                x = 4.5, y = 70), size = 3,
+            fill = NA, label.color = NA, # remove background and outline
+            label.padding = grid::unit(rep(0, 4), "pt") # remove padding
+  ) +
   geom_segment(data = PI_logVR_hypertrophy, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub),
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
   geom_polygon(data=diamond_logVR_hypertrophy, aes(x=x,y=y)) +
@@ -1208,12 +1227,11 @@ I2_logCVR_strength_lab <- data.frame(level = c("study", "arm", "es"),
 forest_logCVR_strength <- Data_logCVR_strength %>% 
   mutate(es = factor(es, levels = es[order(yi)]),
          se = sqrt(vi)) %>%
-  ggplot(aes(x=yi, y=es)) +
+  ggplot(aes(x=yi, y=fct_rev(es))) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_point(size=0.5, alpha=0.25) +
   # scale_x_continuous(limits = c(-4,6), breaks = c(-3,-2,-1,0,1,2,3,4,5,6)) +
   geom_linerange(aes(xmin = yi - (se*1.96), xmax = yi + (se*1.96)), alpha=0.25) +
-  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
   geom_text(data = mutate_if(PI_logCVR_strength,
                              is.numeric, round, 2),
             aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
@@ -1222,7 +1240,7 @@ forest_logCVR_strength <- Data_logCVR_strength %>%
             aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
                 x = 60, y = 90), hjust = "centre", size = 3) +
   geom_text(data = I2_logCVR_strength_lab,
-            aes(label = glue::glue("I^2 [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
+            aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
                 x = 60, y = 70), hjust = "centre", size = 3) +
   geom_segment(data = PI_logCVR_strength, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub),
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
@@ -1277,12 +1295,11 @@ I2_logCVR_hypertrophy_lab <- data.frame(level = c("study", "arm", "es"),
 forest_logCVR_hypertrophy <- Data_logCVR_hypertrophy %>% 
   mutate(es = factor(es, levels = es[order(yi)]),
          se = sqrt(vi)) %>%
-  ggplot(aes(x=yi, y=es)) +
+  ggplot(aes(x=yi, y=fct_rev(es))) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_point(size=0.5, alpha=0.25) +
   # scale_x_continuous(limits = c(-4,6), breaks = c(-3,-2,-1,0,1,2,3,4,5,6)) +
   geom_linerange(aes(xmin = yi - (se*1.96), xmax = yi + (se*1.96)), alpha=0.25) +
-  scale_y_discrete(limits=rev, expand = expansion(mult = c(0.075,0))) +
   geom_text(data = mutate_if(PI_logCVR_hypertrophy,
                              is.numeric, round, 2),
             aes(label = glue::glue("Overall Estimate = {round(pred,2)} [95% Confidence Interval: {round(ci.lb,2)} to {round(ci.ub,2)}]"),
@@ -1291,7 +1308,7 @@ forest_logCVR_hypertrophy <- Data_logCVR_hypertrophy %>%
             aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
                 x = 120, y = 90), hjust = "centre", size = 3) +
   geom_text(data = I2_logCVR_hypertrophy_lab,
-            aes(label = glue::glue("I^2 [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
+            aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
                 x = 120, y = 70), hjust = "centre", size = 3) +
   geom_segment(data = PI_logCVR_hypertrophy, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub),
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
@@ -1638,7 +1655,7 @@ summary_table$Characteristic <- recode(summary_table$Characteristic,
                                        healthy_clinical = "Sample Type",
                                        healthy = "Healthy",
                                        clinical = "Clinical",
-                                       RT_only = "RT + Adjuvant Intervention?",
+                                       RT_only = "RT Intervention Only?",
                                        n = "N", y = "Y",
                                        weeks = "Duration (weeks)",
                                        freq = "Weekly Frequency",

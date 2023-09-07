@@ -1,0 +1,11 @@
+*.aux
+*.doc
+*.dvi
+*.log
+*.out
+*.pdf
+*.toc
+*.zip
+auto/
+lineno.tex
+zipball/

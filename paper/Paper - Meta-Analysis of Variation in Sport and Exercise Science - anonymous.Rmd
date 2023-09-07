@@ -1,9 +1,8 @@
 ---
 title: "Meta-Analysis of Variation in Sport and Exercise Science"
 subtitle: "Examples of Application Within Resistance Training Research"
-date: "18th October 2022"
-abstract: "Meta-analysis has become commonplace within sport and exercise science for synthesising and summarising empirical studies. However, most research in the field focuses upon mean effects; particularly the effects of interventions to improve outcomes such as fitness or performance. It is well known that there is considerable variability in response to interventions. Hence, interest has increased in exploring *precision* or *personalised* exercise approaches. Not only is the mean often affected by interventions, but variances may also be impacted. Exploration of variances in studies such as randomised controlled trials (RCTs) can yield insight into the existence of interindividual heterogeneity in response to interventions and help determine the degree of generalisability of effects. Yet, larger samples sizes than those used for typical mean effects are required when probing variances. Thus, for a field with small samples such as sport and exercise science, exploration of variance through a meta-analytic framework is appealing. Given the value of embracing and exploring variation alongside mean effects in sport and exercise science, yet its lack of application in research synthesis by way of meta-analysis, we introduce and discuss effect size approaches and models for meta-analysis of variation using relatable examples from resistance training RCTs."
-
+date: "????"
+abstract: "Meta-analysis has become commonplace within sport and exercise science for synthesising and summarising empirical studies. However, most research in the field focuses upon mean effects; particularly the effects of interventions to improve outcomes such as fitness or performance. It is well known that \textcolor{red}{individual responses to interventions vary considerably}. Hence, interest has increased in exploring *precision* or *personalised* exercise approaches. Not only is the mean often affected by interventions, but variances may also be impacted. Exploration of variances in studies such as randomised controlled trials (RCTs) can yield insight into interindividual heterogeneity in response to interventions and help determine generalisability of effects. Yet, larger samples sizes than those used for typical mean effects are required when probing variances. Thus, \textcolor{red}{in} a field with small samples such as sport and exercise science, exploration of variance through a meta-analytic framework is appealing. \textcolor{red}{Despite} the value of embracing and exploring variation alongside mean effects in sport and exercise science \textcolor{red}{it is rarely applied to research synthesis through meta-analysis}.\textcolor{red}{We introduce and evaluate different effect size calculations along with models for meta-analysis of variation using relatable examples from resistance training RCTs}."
 output: bookdown::pdf_document2
 bibliography: references.bib
 csl: apa.csl
@@ -11,20 +10,25 @@ toc: false
 header-includes:
    - \usepackage{caption}
    - \captionsetup[figure]{font=small}
+   - \usepackage{lineno}
+   - \linenumbers
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.align="center")
 options(knitr.kable.NA = '')
 ```
-```{r, message=FALSE, warning=FALSE, echo=FALSE, cache=TRUE}
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
 # Load relevant packages
 library(here)
+library(tidyverse)
 library(kableExtra)
+library(patchwork)
+library(ggtext)
 ```
 ```{r, message=FALSE,warning=FALSE,echo=FALSE}
 # load the raw data to the environment
-Data <- read.csv(here("data","Polito et al. RT Extracted Data.csv"), na.strings=c(""," ","NA"))
+Data <- read.csv(here::here("data","Polito et al. RT Extracted Data.csv"), na.strings=c(""," ","NA"))
 
 # load the summary dataframes to the environment
 load(here("models/SMD_RR_SDir_logVR"))
