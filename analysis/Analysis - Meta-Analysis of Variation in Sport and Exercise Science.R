@@ -1445,7 +1445,7 @@ webshot("models/compare_group_models_strength.html", "models/compare_group_model
 ### Meta-analytic scatter plot
 
 # get the predicted log values
-Data_long_strength_log <- cbind(Data_long_strength, predict(RobuEstMultiLevelModel_ri__log_mean_mod_strength )) %>%
+Data_long_strength_log <- cbind(Data_long_strength, predict(RobuEstMultiLevelModel_rs_study__log_mean_mod_strength )) %>%
     mutate(wi = 1/sqrt(SD_log_vi),
            size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi))) 
 
@@ -1595,6 +1595,51 @@ save(model_mean_variance_delta_plots, file = "plots/model_mean_variance_delta_pl
 model_mean_variance_delta_plots
 
 ggsave("plots/model_mean_variance_delta_plots.tiff", width = 10, height = 5, device = "tiff", dpi = 300)
+
+
+### Compare estimates from log CVR and each meta-regression model for strength and hypertrophy
+model_estimates <- data.frame(Outcome = "",
+                 Model = c("lnCVR", "MLMR: Random Intercept", "MLMR: + Random Slope (Study)", "MLMR: + Random Slope (Study & Arm)",
+                           "lnCVR", "MLMR: Random Intercept", "MLMR: + Random Slope (Study)", "MLMR: + Random Slope (Study & Arm)"),
+                 Estimate = c(RobuEstMultiLevelModel_logCVR_strength$b, 
+                              RobuEstMultiLevelModel_ri__log_mean_mod_strength$b[3], 
+                              RobuEstMultiLevelModel_rs_study__log_mean_mod_strength$b[3], 
+                              RobuEstMultiLevelModel_rs_both__log_mean_mod_strength$b[3],
+                              RobuEstMultiLevelModel_logCVR_hypertrophy$b, 
+                              RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy$b[3], 
+                              RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy$b[3],
+                              RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy$b[3]),
+                 `Lower 95% CI` = c(RobuEstMultiLevelModel_logCVR_strength$ci.lb, 
+                           RobuEstMultiLevelModel_ri__log_mean_mod_strength$ci.lb[3], 
+                           RobuEstMultiLevelModel_rs_study__log_mean_mod_strength$ci.lb[3], 
+                           RobuEstMultiLevelModel_rs_both__log_mean_mod_strength$ci.lb[3],
+                           RobuEstMultiLevelModel_logCVR_hypertrophy$ci.lb, 
+                           RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy$ci.lb[3], 
+                           RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy$ci.lb[3],
+                           RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy$ci.lb[3]),
+                 `Upper 95% CI` = c(RobuEstMultiLevelModel_logCVR_strength$ci.ub, 
+                           RobuEstMultiLevelModel_ri__log_mean_mod_strength$ci.ub[3], 
+                           RobuEstMultiLevelModel_rs_study__log_mean_mod_strength$ci.ub[3], 
+                           RobuEstMultiLevelModel_rs_both__log_mean_mod_strength$ci.ub[3],
+                           RobuEstMultiLevelModel_logCVR_hypertrophy$ci.ub, 
+                           RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy$ci.ub[3], 
+                           RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy$ci.ub[3],
+                           RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy$ci.ub[3])) %>%
+  mutate(across(where(is.numeric), round, 2)) 
+
+save(model_estimates, file = "models/group_model_estimates")
+
+knitr::kable(
+  model_estimates,
+  caption = "Comparison of estimates from model using lnCVR and multilevel meta-regression models of variance~mean with group (RT vs CON) as a predictor",
+) %>%
+  row_spec(0, bold = TRUE) %>%
+  pack_rows(index = c("Strength" = 4, "Hypertrophy" = 4)) %>%
+  kable_classic(full_width = FALSE) %>%
+  kable_styling() %>%
+  save_kable("models/compare_group_model_estimates.html")
+
+webshot::webshot("models/compare_group_model_estimates.html", "models/compare_group_model_estimates.pdf")
 
 ####### Summary tables for study/participant characteristics 
 
