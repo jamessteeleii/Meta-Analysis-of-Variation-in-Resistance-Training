@@ -14,6 +14,7 @@
 library(metafor)
 library(tidyverse)
 library(orchaRd)
+library(bayestestR)
 library(patchwork)
 library(europepmc)
 library(kableExtra)               
@@ -868,17 +869,21 @@ Data_long_pre <- cbind(Data_long_pre_m, sd = Data_long_pre_sd$sd)
 Data_long_pre_RT <- Data_long_pre %>%
   filter(group == "RT") %>%
   mutate(n = RT_n,
-         arm = as.factor(unclass(factor(unlist(arm))))) %>%
+         arm = as.factor(unclass(factor(unlist(arm)))),
+         es = as.factor(unclass(factor(unlist(es))))) %>%
   select(study, arm, es, outcome, group, mean, sd, n)
 
 Data_long_pre_CON <- Data_long_pre %>%
   filter(group == "CON") %>%
-  distinct() %>%
+  distinct(study, outcome, group, mean, sd, .keep_all = TRUE) %>%
   mutate(n = CON_n,
-         arm = as.factor(unclass(factor(unlist(arm)))+length(unique(Data_long_pre_RT$arm)))) %>%
+         arm = as.factor(unclass(factor(unlist(arm)))+length(unique(Data_long_pre_RT$arm))),
+         es = as.factor(unclass(factor(unlist(es)))+length(unique(Data_long_pre_RT$es)))) %>%
   select(study, arm, es, outcome, group, mean, sd, n)
 
-Data_long_pre <- rbind(Data_long_pre_RT, Data_long_pre_CON)
+Data_long_pre <- rbind(Data_long_pre_RT, Data_long_pre_CON) %>%
+  filter(!is.na(mean) &
+           !is.na(sd))
 
 # Calculate log SD and variance of log SD
 Data_long_pre$SD_log <- log(Data_long_pre$sd) + (1/(2*(Data_long_pre$n-1)))
@@ -936,97 +941,211 @@ ggsave("plots/mean_variance_pre_plots.tiff", width = 10, height = 7.5, device = 
 
 ### Comparing a range of models
 
-### Fitting a random intercept only mixed effects model for mean-variance
-# We will include the outcome type as a fixed moderator with random intercepts for both study and arm 
+# Random intercepts only
 
-MultiLevelModel_ri__log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
+MultiLevelModel_ri_only_log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
                                                 random = list(~ 1 | study, ~ 1 | arm, ~ 1 | es),
                                                 mods = ~ log(mean) + outcome,
                                                 method="REML", test="t",
                                                 # control=list(optimizer="optim", optmethod="Nelder-Mead")
 )
 
-save(MultiLevelModel_ri__log_mean_variance, file = "models/MultiLevelModel_ri__log_mean_variance")
+save(MultiLevelModel_ri_only_log_mean_variance, file = "models/MultiLevelModel_ri_only_log_mean_variance")
 
 ### Calculate I^2 
-I2_ri__log_mean_variance <- i2_ml(MultiLevelModel_ri__log_mean_variance)
+I2_ri_only_log_mean_variance <- i2_ml(MultiLevelModel_ri_only_log_mean_variance)
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_ri__log_mean_variance <- robust(MultiLevelModel_ri__log_mean_variance, Data_long_pre$study)
+RobuEstMultiLevelModel_ri_only_log_mean_variance <- robust(MultiLevelModel_ri_only_log_mean_variance, Data_long_pre$study)
 
-save(RobuEstMultiLevelModel_ri__log_mean_variance, file = "models/RobuEstMultiLevelModel_ri__log_mean_variance")
+save(RobuEstMultiLevelModel_ri_only_log_mean_variance, file = "models/RobuEstMultiLevelModel_ri_only_log_mean_variance")
 
-### Fitting a random slope mixed effects model for mean-variance
-# We will include the outcome type as a fixed moderator with random slopes for study 
+# Random intercepts plus slope for outcome in study
 
-MultiLevelModel_rs_study__log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
+MultiLevelModel_ri_group_slope_study_log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
                                                      random = list(~ outcome | study, ~ 1 | arm, ~ 1 | es), struct = "GEN",
                                                      mods = ~ log(mean) + outcome,
                                                      method="REML", test="t",
                                                      # control=list(optimizer="optim", optmethod="Nelder-Mead")
 )
 
-save(MultiLevelModel_rs_study__log_mean_variance, file = "models/MultiLevelModel_rs_study__log_mean_variance")
+save(MultiLevelModel_ri_group_slope_study_log_mean_variance, file = "models/MultiLevelModel_ri_group_slope_study_log_mean_variance")
 
 ### Calculate I^2 
-I2_rs_study__log_mean_variance <- i2_ml(MultiLevelModel_rs_study__log_mean_variance)
+I2_rs_study__log_mean_variance <- i2_ml(MultiLevelModel_ri_group_slope_study_log_mean_variance)
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_rs_study__log_mean_variance <- robust(MultiLevelModel_rs_study__log_mean_variance, Data_long_pre$study)
+RobuEstMultiLevelModel_ri_group_slope_study_log_mean_variance <- robust(MultiLevelModel_ri_group_slope_study_log_mean_variance, Data_long_pre$study)
 
-save(RobuEstMultiLevelModel_rs_study__log_mean_variance, file = "models/RobuEstMultiLevelModel_rs_study__log_mean_variance")
+save(RobuEstMultiLevelModel_ri_group_slope_study_log_mean_variance, file = "models/RobuEstMultiLevelModel_ri_group_slope_study_log_mean_variance")
 
+# Random intercepts plus slope for outcome in study and arm
 
-
-### Fitting a random slope mixed effects model for mean-variance
-# We will include the outcome type as a fixed moderator with random slopes for both study and arm 
-
-MultiLevelModel_rs_both__log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
+MultiLevelModel_ri_group_slope_study_arm_log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
                                                 random = list(~ outcome | study, ~ outcome | arm, ~ 1 | es), struct = "GEN",
                                                 mods = ~ log(mean) + outcome,
                                                 method="REML", test="t",
                                                 # control=list(optimizer="optim", optmethod="Nelder-Mead")
                                             )
 
-save(MultiLevelModel_rs_both__log_mean_variance, file = "models/MultiLevelModel_rs_both__log_mean_variance")
+save(MultiLevelModel_ri_group_slope_study_arm_log_mean_variance, file = "models/MultiLevelModel_ri_group_slope_study_arm_log_mean_variance")
 
 ### Calculate I^2 
-I2_rs_both__log_mean_variance <- i2_ml(MultiLevelModel_rs_both__log_mean_variance)
+I2_rs_both__log_mean_variance <- i2_ml(MultiLevelModel_ri_group_slope_study_arm_log_mean_variance)
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_rs_both__log_mean_variance <- robust(MultiLevelModel_rs_both__log_mean_variance, Data_long_pre$study)
+RobuEstMultiLevelModel_ri_group_slope_study_arm_log_mean_variance <- robust(MultiLevelModel_ri_group_slope_study_arm_log_mean_variance, Data_long_pre$study)
 
-save(RobuEstMultiLevelModel_rs_both__log_mean_variance, file = "models/RobuEstMultiLevelModel_rs_both__log_mean_variance")
+save(RobuEstMultiLevelModel_ri_group_slope_study_arm_log_mean_variance, file = "models/RobuEstMultiLevelModel_ri_group_slope_study_arm_log_mean_variance")
 
-### Compare all three models
-outcome_ri_rs_study <- data.frame(anova(RobuEstMultiLevelModel_ri__log_mean_variance,
-                                        RobuEstMultiLevelModel_rs_study__log_mean_variance))
+# Random intercepts plus slope for log mean in study
 
-outcome_rs_study_rs_both <- data.frame(anova(RobuEstMultiLevelModel_rs_study__log_mean_variance,
-      RobuEstMultiLevelModel_rs_both__log_mean_variance)) 
+MultiLevelModel_ri_mean_slope_study_log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
+                                                                     random = list(~ log(mean) | study, ~ 1 | arm, ~ 1 | es), struct = "GEN",
+                                                                     mods = ~ log(mean) + outcome,
+                                                                     method="REML", test="t",
+                                                                     # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
 
-compare_outcome_models <- rbind(outcome_rs_study_rs_both, outcome_ri_rs_study[2,])
+save(MultiLevelModel_ri_mean_slope_study_log_mean_variance, file = "models/MultiLevelModel_ri_mean_slope_study_log_mean_variance")
 
-rownames(compare_outcome_models) <- c("+ Random Slope (Study & Arm)", "+ Random Slope (Study)", "Random Intercept")
+### Calculate I^2 
+I2_rs_both__log_mean_variance <- i2_ml(MultiLevelModel_ri_mean_slope_study_log_mean_variance)
 
-knitr::kable(
-  compare_outcome_models,
-  caption = "Comparison of meta-regression models of variance~mean with outcome (strength vs hypertrophy) as a predictor (each compared to the next most complex model)",
-  ) %>%
-  footnote(general = c("df = degrees of freedom; ", 
-                       "AIC = Akaike Information Criterion; ", 
-                       "BIC = Bayesian Information Criterion; ",
-                       "AICc = Second-order Akaike Information Criterion; ",
-                       "logLik = Log-Likelihood; ",
-                       "LRT = Log-Likelihood Ratio Test; ",
-                       "QE = Test statistic for heterogeneity of full model")
-  ) %>%
-  row_spec(0, bold = TRUE) %>%
-  kable_classic(full_width = FALSE) %>%
-  kable_styling() %>%
-  save_kable("models/compare_outcome_models.html")
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_variance <- robust(MultiLevelModel_ri_mean_slope_study_log_mean_variance, Data_long_pre$study)
 
-webshot("models/compare_outcome_models.html", "models/compare_outcome_models.pdf")
+save(RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_variance, file = "models/RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_variance")
+
+# Random intercepts plus slope for log mean in study and arm
+
+MultiLevelModel_ri_mean_slope_study_arm_log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
+                                                                random = list(~ log(mean) | study, ~ log(mean) | arm, ~ 1 | es), struct = "GEN",
+                                                                mods = ~ log(mean) + outcome,
+                                                                method="REML", test="t",
+                                                                # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_ri_mean_slope_study_arm_log_mean_variance, file = "models/MultiLevelModel_ri_mean_slope_study_arm_log_mean_variance")
+
+### Calculate I^2 
+I2_rs_both__log_mean_variance <- i2_ml(MultiLevelModel_ri_mean_slope_study_arm_log_mean_variance)
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_variance <- robust(MultiLevelModel_ri_mean_slope_study_arm_log_mean_variance, Data_long_pre$study)
+
+save(RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_variance, file = "models/RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_variance")
+
+# Random intercepts plus slope for log mean and outcome in study
+
+MultiLevelModel_ri_mean_group_slope_study_log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
+                                                                    random = list(~ log(mean) + outcome | study, ~ 1 | arm, ~ 1 | es), struct = "GEN",
+                                                                    mods = ~ log(mean) + outcome,
+                                                                    method="REML", test="t",
+                                                                    # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_ri_mean_group_slope_study_log_mean_variance, file = "models/MultiLevelModel_ri_mean_group_slope_study_log_mean_variance")
+
+### Calculate I^2 
+I2_rs_both__log_mean_variance <- i2_ml(MultiLevelModel_ri_mean_group_slope_study_log_mean_variance)
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_variance <- robust(MultiLevelModel_ri_mean_group_slope_study_log_mean_variance, Data_long_pre$study)
+
+save(RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_variance, file = "models/RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_variance")
+
+# Random intercepts plus slope for log mean and group in study and arm
+
+MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_pre,
+                                                                      random = list(~ log(mean) + outcome | study, ~ log(mean) + outcome | arm, ~ 1 | es), struct = "GEN",
+                                                                      mods = ~ log(mean) + outcome,
+                                                                      method="REML", test="t",
+                                                                      # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance, file = "models/MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance")
+
+### Calculate I^2 
+I2_rs_both__log_mean_variance <- i2_ml(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance)
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance <- robust(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance, Data_long_pre$study)
+
+save(RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance, file = "models/RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance")
+
+### Compare all models against one another using Bayes Factors i.e., under which model is the data more probable?
+
+BF_variance_models <- bayesfactor_models(RobuEstMultiLevelModel_ri_only_log_mean_variance,
+                                     RobuEstMultiLevelModel_ri_group_slope_study_log_mean_variance,
+                                     RobuEstMultiLevelModel_ri_group_slope_study_arm_log_mean_variance,
+                                     RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_variance,
+                                     RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_variance,
+                                     RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_variance,
+                                     RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance)
+
+save(BF_variance_models, file = "models/BF_variance_models")
+
+BF_2log <- function(x) (2*x)
+
+BF_variance_models <- as.data.frame(as.matrix(BF_variance_models))  %>%
+  mutate_at(1:7, BF_2log) %>%
+  rownames_to_column("Denominator") %>%
+  rename("Random Intercepts Only" = "RobuEstMultiLevelModel_ri_only_log_mean_variance",
+         "Random Intercepts + Random Slope (Outcome) at Study Level" = "RobuEstMultiLevelModel_ri_group_slope_study_log_mean_variance",
+         "Random Intercepts + Random Slope (Outcome) at Study and Arm Level" = "RobuEstMultiLevelModel_ri_group_slope_study_arm_log_mean_variance",
+         "Random Intercepts + Random Slope (log Mean) at Study Level" = "RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_variance",
+         "Random Intercepts + Random Slope (log Mean) at Study and Arm Level" = "RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_variance",
+         "Random Intercepts + Random Slope (Outcome + log Mean) at Study Level" = "RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_variance",
+         "Random Intercepts + Random Slope (Outcome + log Mean) at Study and Arm Level" = "RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance") %>%
+  pivot_longer(2:8, names_to = "Numerator", values_to = "logBF")
+
+BF_variance_models$Denominator <-  recode(BF_variance_models$Denominator, 
+                                      "RobuEstMultiLevelModel_ri_only_log_mean_variance" = "Random Intercepts Only",
+                                      "RobuEstMultiLevelModel_ri_group_slope_study_log_mean_variance" = "Random Intercepts + Random Slope (Outcome) at Study Level",
+                                      "RobuEstMultiLevelModel_ri_group_slope_study_arm_log_mean_variance" = "Random Intercepts + Random Slope (Outcome) at Study and Arm Level",
+                                      "RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_variance" = "Random Intercepts + Random Slope (log Mean) at Study Level",
+                                      "RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_variance" = "Random Intercepts + Random Slope (log Mean) at Study and Arm Level",
+                                      "RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_variance" = "Random Intercepts + Random Slope (Outcome + log Mean) at Study Level",
+                                      "RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance" = "Random Intercepts + Random Slope (Outcome + log Mean) at Study and Arm Level")
+
+model_mean_variance_pre_model_comparisons <- BF_variance_models %>% 
+  mutate(Denominator = factor(Denominator, levels= c( 
+    "Random Intercepts Only",
+    "Random Intercepts + Random Slope (Outcome) at Study Level",
+    "Random Intercepts + Random Slope (Outcome) at Study and Arm Level",
+    "Random Intercepts + Random Slope (log Mean) at Study Level",
+    "Random Intercepts + Random Slope (log Mean) at Study and Arm Level",
+    "Random Intercepts + Random Slope (Outcome + log Mean) at Study Level",
+    "Random Intercepts + Random Slope (Outcome + log Mean) at Study and Arm Level")),
+    Numerator = factor(Numerator, levels= c( 
+      "Random Intercepts Only",
+      "Random Intercepts + Random Slope (Outcome) at Study Level",
+      "Random Intercepts + Random Slope (Outcome) at Study and Arm Level",
+      "Random Intercepts + Random Slope (log Mean) at Study Level",
+      "Random Intercepts + Random Slope (log Mean) at Study and Arm Level",
+      "Random Intercepts + Random Slope (Outcome + log Mean) at Study Level",
+      "Random Intercepts + Random Slope (Outcome + log Mean) at Study and Arm Level"))) %>%
+  ggplot(aes(x=Numerator, y=Denominator, fill=logBF)) +
+  geom_tile() +
+  geom_raster() +
+  geom_text(aes(label = round(logBF,2))) +
+  scale_fill_gradient2(low = "#E69F00", mid="white", high = "#56B4E9") +
+  scale_y_discrete(limits=rev, labels = function(x) str_wrap(x, width = 25)) +
+  scale_x_discrete(position = "top", labels = function(x) str_wrap(x, width = 25)) +
+  labs(title = "Testing model specification for log standard deviation models of pre-intervention scores using 2×log(BF)",
+       fill = "2×log(BF)",
+       caption = "Kass and Raferty (1995) scale:
+       -Inf to 0 = Negative; 0 to 2 = Weak; 2 to 6 = Positive; 6 to 10 = Strong; 10 to +Inf = Very Strong") +
+  theme_classic() +
+  theme(panel.border = element_rect(colour = "black", fill=NA, size=2.5))
+
+save(model_mean_variance_pre_model_comparisons, file = "plots/model_mean_variance_pre_model_comparisons")
+
+model_mean_variance_pre_model_comparisons
+
+ggsave("plots/mean_variance_pre_model_comparisons.tiff", width = 15, height = 7.5, device = "tiff", dpi = 300)
+
 
 ### Meta-analytic scatter plot
 
@@ -1034,9 +1153,9 @@ webshot("models/compare_outcome_models.html", "models/compare_outcome_models.pdf
 Data_long_pre <- Data_long_pre %>%
   filter(!is.na(SD_log))
 
-Data_long_pre <- cbind(Data_long_pre, pred = predict(RobuEstMultiLevelModel_ri__log_mean_variance)$pred,
-                      ci.lb =  predict(RobuEstMultiLevelModel_ri__log_mean_variance)$ci.lb,
-                      ci.ub =  predict(RobuEstMultiLevelModel_ri__log_mean_variance)$ci.ub) %>%
+Data_long_pre <- cbind(Data_long_pre, pred = predict(RobuEstMultiLevelModel_ri_only_log_mean_variance)$pred,
+                      ci.lb =  predict(RobuEstMultiLevelModel_ri_only_log_mean_variance)$ci.lb,
+                      ci.ub =  predict(RobuEstMultiLevelModel_ri_only_log_mean_variance)$ci.ub) %>%
   mutate(wi = 1/sqrt(SD_log_vi),
          size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi))) 
 
@@ -1091,14 +1210,16 @@ Data_long <- cbind(Data_long_m, sd = Data_long_sd$sd)
 Data_long_RT <- Data_long %>%
   filter(group == "RT") %>%
   mutate(n = RT_n,
-         arm = as.factor(unclass(factor(unlist(arm))))) %>%
+         arm = as.factor(unclass(factor(unlist(arm)))),
+         es = as.factor(unclass(factor(unlist(es))))) %>%
   select(study, arm, es, outcome, group, mean, sd, n)
 
 Data_long_CON <- Data_long %>%
   filter(group == "CON") %>%
-  distinct() %>%
+  distinct(study, outcome, group, mean, sd, .keep_all = TRUE) %>%
   mutate(n = CON_n,
-         arm = as.factor(unclass(factor(unlist(arm)))+length(unique(Data_long_RT$arm)))) %>%
+         arm = as.factor(unclass(factor(unlist(arm)))+length(unique(Data_long_RT$arm))),
+         es = as.factor(unclass(factor(unlist(es)))+length(unique(Data_long_RT$es)))) %>%
   select(study, arm, es, outcome, group, mean, sd, n)
 
 Data_long <- rbind(Data_long_RT, Data_long_CON)
@@ -1169,7 +1290,7 @@ save(mean_variance_delta_plots, file = "plots/mean_variance_delta_plots")
 
 mean_variance_delta_plots
 
-ggsave("plots/Mean_variance_delta_plots.tiff", width = 10, height = 7.5, device = "tiff", dpi = 300)
+ggsave("plots/mean_variance_delta_plots.tiff", width = 10, height = 7.5, device = "tiff", dpi = 300)
 
 ### The assumption of linearity seems to be far better supported for log SD and log mean
 ### There is far more heteroskedasticity in the raw SD and mean data
@@ -1352,102 +1473,193 @@ Data_long_strength <- Data_long %>%
 
 ### Comparing a range of models
 
-### Fitting a random intercept only mixed effects model for mean-variance
-# We will include the group type as a fixed moderator with random intercepts for both study and arm 
+# Random intercepts only
 
-MultiLevelModel_ri__log_mean_mod_strength  <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
-                                                random = list(~ 1 | study, ~ 1 | arm, ~ 1 | es),
-                                                mods = ~ mean_log + group,
-                                                method="REML", test="t",
-                                                # control=list(optimizer="optim", optmethod="Nelder-Mead")
+MultiLevelModel_ri_only_log_mean_mod_strength <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
+                                                    random = list(~ 1 | study, ~ 1 | arm, ~ 1 | es),
+                                                    mods = ~ mean_log + group,
+                                                    method="REML", test="t",
+                                                    # control=list(optimizer="optim", optmethod="Nelder-Mead")
 )
 
-save(MultiLevelModel_ri__log_mean_mod_strength , file = "models/MultiLevelModel_ri__log_mean_mod_strength ")
+save(MultiLevelModel_ri_only_log_mean_mod_strength, file = "models/MultiLevelModel_ri_only_log_mean_mod_strength")
 
 ### Calculate I^2 
-I2_ri__log_mean_mod_strength <- i2_ml(MultiLevelModel_ri__log_mean_mod_strength)
+I2_ri_only_log_mean_mod_strength <- i2_ml(MultiLevelModel_ri_only_log_mean_mod_strength)
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_ri__log_mean_mod_strength  <- robust(MultiLevelModel_ri__log_mean_mod_strength , Data_long_strength$study)
+RobuEstMultiLevelModel_ri_only_log_mean_mod_strength <- robust(MultiLevelModel_ri_only_log_mean_mod_strength, Data_long_strength$study)
 
-save(RobuEstMultiLevelModel_ri__log_mean_mod_strength , file = "models/RobuEstMultiLevelModel_ri__log_mean_mod_strength ")
+save(RobuEstMultiLevelModel_ri_only_log_mean_mod_strength, file = "models/RobuEstMultiLevelModel_ri_only_log_mean_mod_strength")
 
-### Fitting a random slope mixed effects model for mean-variance
-# We will include the group type as a fixed moderator with random slopes for study 
+# Random intercepts plus slope for group in study
 
-MultiLevelModel_rs_study__log_mean_mod_strength  <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
-                                                      random = list(~ group | study, ~ 1 | arm, ~ 1 | es), struct = "GEN",
-                                                      mods = ~ mean_log + group,
-                                                      method="REML", test="t",
-                                                      # control=list(optimizer="optim", optmethod="Nelder-Mead")
+MultiLevelModel_ri_group_slope_study_log_mean_mod_strength <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
+                                                                 random = list(~ group | study, ~ 1 | arm, ~ 1 | es), struct = "GEN",
+                                                                 mods = ~ mean_log + group,
+                                                                 method="REML", test="t",
+                                                                 # control=list(optimizer="optim", optmethod="Nelder-Mead")
 )
 
-save(MultiLevelModel_rs_study__log_mean_mod_strength , file = "models/MultiLevelModel_rs_study__log_mean_mod_strength ")
+save(MultiLevelModel_ri_group_slope_study_log_mean_mod_strength, file = "models/MultiLevelModel_ri_group_slope_study_log_mean_mod_strength")
 
 ### Calculate I^2 
-I2_rs_study__log_mean_mod_strength <- i2_ml(MultiLevelModel_rs_study__log_mean_mod_strength)
+I2_rs_study__log_mean_mod_strength <- i2_ml(MultiLevelModel_ri_group_slope_study_log_mean_mod_strength)
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_rs_study__log_mean_mod_strength  <- robust(MultiLevelModel_rs_study__log_mean_mod_strength , Data_long_strength$study)
+RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_strength <- robust(MultiLevelModel_ri_group_slope_study_log_mean_mod_strength, Data_long_strength$study)
 
-save(RobuEstMultiLevelModel_rs_study__log_mean_mod_strength , file = "models/RobuEstMultiLevelModel_rs_study__log_mean_mod_strength ")
+save(RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_strength, file = "models/RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_strength")
 
-### Fitting a random slope mixed effects model for mean-variance
-# We will include the group type as a fixed moderator with random slopes for both study and arm 
+# Random intercepts plus slope for log mean in study
 
-MultiLevelModel_rs_both__log_mean_mod_strength  <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
-                                                     random = list(~ group | study, ~ group | arm, ~ 1 | es), struct = "GEN",
-                                                     mods = ~ mean_log + group,
-                                                     method="REML", test="t",
-                                                     # control=list(optimizer="optim", optmethod="Nelder-Mead")
+MultiLevelModel_ri_mean_slope_study_log_mean_mod_strength <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
+                                                                random = list(~ mean_log | study, ~ 1 | arm, ~ 1 | es), struct = "GEN",
+                                                                mods = ~ mean_log + group,
+                                                                method="REML", test="t",
+                                                                # control=list(optimizer="optim", optmethod="Nelder-Mead")
 )
 
-save(MultiLevelModel_rs_both__log_mean_mod_strength , file = "models/MultiLevelModel_rs_both__log_mean_mod_strength ")
+save(MultiLevelModel_ri_mean_slope_study_log_mean_mod_strength, file = "models/MultiLevelModel_ri_mean_slope_study_log_mean_mod_strength")
 
 ### Calculate I^2 
-I2_rs_both__log_mean_mod_strength <- i2_ml(MultiLevelModel_rs_both__log_mean_mod_strength)
+I2_rs_both__log_mean_mod_strength <- i2_ml(MultiLevelModel_ri_mean_slope_study_log_mean_mod_strength)
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_rs_both__log_mean_mod_strength  <- robust(MultiLevelModel_rs_both__log_mean_mod_strength , Data_long_strength$study)
+RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_strength <- robust(MultiLevelModel_ri_mean_slope_study_log_mean_mod_strength, Data_long_strength$study)
 
-save(RobuEstMultiLevelModel_rs_both__log_mean_mod_strength , file = "models/RobuEstMultiLevelModel_rs_both__log_mean_mod_strength ")
+save(RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_strength, file = "models/RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_strength")
 
-### Compare all three models
-group_ri_rs_study <- data.frame(anova(RobuEstMultiLevelModel_ri__log_mean_mod_strength ,
-                                        RobuEstMultiLevelModel_rs_study__log_mean_mod_strength ))
+# Random intercepts plus slope for log mean in study and arm
 
-group_rs_study_rs_both <- data.frame(anova(RobuEstMultiLevelModel_rs_study__log_mean_mod_strength ,
-                                             RobuEstMultiLevelModel_rs_both__log_mean_mod_strength )) 
+MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
+                                                                    random = list(~ mean_log | study, ~ mean_log | arm, ~ 1 | es), struct = "GEN",
+                                                                    mods = ~ mean_log + group,
+                                                                    method="REML", test="t",
+                                                                    # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
 
-compare_group_models_strength <- rbind(group_rs_study_rs_both, group_ri_rs_study[2,])
+save(MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength, file = "models/MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength")
 
-rownames(compare_group_models_strength) <- c("+ Random Slope (Study & Arm)", "+ Random Slope (Study)", "Random Intercept")
+### Calculate I^2 
+I2_rs_both__log_mean_mod_strength <- i2_ml(MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength)
 
-knitr::kable(
-  compare_group_models_strength,
-  caption = "Comparison of meta-regression models (strength outcomes) of variance~mean with group (RT vs CON) as a predictor (each compared to the next most complex model)",
-) %>%
-  footnote(general = c("df = degrees of freedom; ", 
-                       "AIC = Akaike Information Criterion; ", 
-                       "BIC = Bayesian Information Criterion; ",
-                       "AICc = Second-order Akaike Information Criterion; ",
-                       "logLik = Log-Likelihood; ",
-                       "LRT = Log-Likelihood Ratio Test; ",
-                       "QE = Test statistic for heterogeneity of full model")
-  ) %>%
-  row_spec(0, bold = TRUE) %>%
-  kable_classic(full_width = FALSE) %>%
-  kable_styling() %>%
-  save_kable("models/compare_group_models_strength.html")
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength <- robust(MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength, Data_long_strength$study)
 
-webshot("models/compare_group_models_strength.html", "models/compare_group_models_strength.pdf")
+save(RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength, file = "models/RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength")
+
+# Random intercepts plus slope for log mean and group in study
+
+MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
+                                                                      random = list(~ mean_log + group | study, ~ 1 | arm, ~ 1 | es), struct = "GEN",
+                                                                      mods = ~ mean_log + group,
+                                                                      method="REML", test="t",
+                                                                      # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength, file = "models/MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength")
+
+### Calculate I^2 
+I2_rs_both__log_mean_mod_strength <- i2_ml(MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength)
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength <- robust(MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength, Data_long_strength$study)
+
+save(RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength, file = "models/RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength")
+
+# Random intercepts plus slope for log mean and group in study and arm
+
+MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_strength,
+                                                                          random = list(~ mean_log + group | study, ~ mean_log | arm, ~ 1 | es), struct = "GEN",
+                                                                          mods = ~ mean_log + group,
+                                                                          method="REML", test="t",
+                                                                          # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength, file = "models/MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength")
+
+### Calculate I^2 
+I2_rs_both__log_mean_mod_strength <- i2_ml(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength)
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength <- robust(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength, Data_long_strength$study)
+
+save(RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength, file = "models/RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength")
+
+### Compare all models against one another using Bayes Factors i.e., under which model is the data more probable?
+
+BF_mod_strength_models <- bayesfactor_models(RobuEstMultiLevelModel_ri_only_log_mean_mod_strength,
+                                         RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_strength,
+                                         RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_strength,
+                                         RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength,
+                                         RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength,
+                                         RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength)
+
+save(BF_mod_strength_models, file = "models/BF_mod_strength_models")
+
+BF_2log <- function(x) (2*x)
+
+BF_mod_strength_models <- as.data.frame(as.matrix(BF_mod_strength_models))  %>%
+  mutate_at(1:6, BF_2log) %>%
+  rownames_to_column("Denominator") %>%
+  rename("Random Intercepts Only" = "RobuEstMultiLevelModel_ri_only_log_mean_mod_strength",
+         "Random Intercepts + Random Slope (group) at Study Level" = "RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_strength",
+         "Random Intercepts + Random Slope (log Mean) at Study Level" = "RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_strength",
+         "Random Intercepts + Random Slope (log Mean) at Study and Arm Level" = "RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength",
+         "Random Intercepts + Random Slope (group + log Mean) at Study Level" = "RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength",
+         "Random Intercepts + Random Slope (group + log Mean) at Study and Arm Level" = "RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength") %>%
+  pivot_longer(2:7, names_to = "Numerator", values_to = "logBF")
+
+BF_mod_strength_models$Denominator <-  recode(BF_mod_strength_models$Denominator, 
+                                          "RobuEstMultiLevelModel_ri_only_log_mean_mod_strength" = "Random Intercepts Only",
+                                          "RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_strength" = "Random Intercepts + Random Slope (group) at Study Level",
+                                          "RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_strength" = "Random Intercepts + Random Slope (log Mean) at Study Level",
+                                          "RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength" = "Random Intercepts + Random Slope (log Mean) at Study and Arm Level",
+                                          "RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength" = "Random Intercepts + Random Slope (group + log Mean) at Study Level",
+                                          "RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength" = "Random Intercepts + Random Slope (group + log Mean) at Study and Arm Level")
+
+model_mean_mod_strength_model_comparisons <- BF_mod_strength_models %>% 
+  mutate(Denominator = factor(Denominator, levels= c( 
+    "Random Intercepts Only",
+    "Random Intercepts + Random Slope (group) at Study Level",
+    "Random Intercepts + Random Slope (log Mean) at Study Level",
+    "Random Intercepts + Random Slope (log Mean) at Study and Arm Level",
+    "Random Intercepts + Random Slope (group + log Mean) at Study Level",
+    "Random Intercepts + Random Slope (group + log Mean) at Study and Arm Level")),
+    Numerator = factor(Numerator, levels= c( 
+      "Random Intercepts Only",
+      "Random Intercepts + Random Slope (group) at Study Level",
+      "Random Intercepts + Random Slope (log Mean) at Study Level",
+      "Random Intercepts + Random Slope (log Mean) at Study and Arm Level",
+      "Random Intercepts + Random Slope (group + log Mean) at Study Level",
+      "Random Intercepts + Random Slope (group + log Mean) at Study and Arm Level"))) %>%
+  ggplot(aes(x=Numerator, y=Denominator, fill=logBF)) +
+  geom_tile() +
+  geom_raster() +
+  geom_text(aes(label = round(logBF,2))) +
+  scale_fill_gradient2(low = "#E69F00", mid="white", high = "#56B4E9") +
+  scale_y_discrete(limits=rev, labels = function(x) str_wrap(x, width = 25)) +
+  scale_x_discrete(position = "top", labels = function(x) str_wrap(x, width = 25)) +
+  labs(title = "Testing model specification for log standard deviation models of change scores (strength) using 2×log(BF)",
+       fill = "2×log(BF)",
+       caption = "Kass and Raferty (1995) scale:
+       -Inf to 0 = Negative; 0 to 2 = Weak; 2 to 6 = Positive; 6 to 10 = Strong; 10 to +Inf = Very Strong") +
+  theme_classic() +
+  theme(panel.border = element_rect(colour = "black", fill=NA, size=2.5))
+
+save(model_mean_mod_strength_model_comparisons, file = "plots/model_mean_mod_strength_model_comparisons")
+
+model_mean_mod_strength_model_comparisons
+
+ggsave("plots/mean_mod_strength_model_comparisons.tiff", width = 15, height = 7.5, device = "tiff", dpi = 300)
 
 ### Meta-analytic scatter plot
 
 # get the predicted log values
-Data_long_strength_log <- cbind(Data_long_strength, predict(RobuEstMultiLevelModel_rs_study__log_mean_mod_strength )) %>%
+Data_long_strength_log <- cbind(Data_long_strength, predict(RobuEstMultiLevelModel_ri_only_log_mean_mod_strength )) %>%
     mutate(wi = 1/sqrt(SD_log_vi),
-           size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi))) 
+           size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi)))
 
 model_m_sd_strength_log <- ggplot(Data_long_strength_log, aes(x=mean_log, y=SD_log)) +
     geom_abline(intercept = 0, slope = 1, linetype = 2, alpha = 0.1) +
@@ -1463,6 +1675,7 @@ model_m_sd_strength_log <- ggplot(Data_long_strength_log, aes(x=mean_log, y=SD_l
     ggtitle("Strength Outcomes") +
     guides(size = "none", fill = "none")
 
+
 ### Hypertrophy
 Data_long_hypertrophy <- Data_long %>%
     filter(!is.na(sd) &
@@ -1476,102 +1689,193 @@ Data_long_hypertrophy <- Data_long %>%
 
 ### Comparing a range of models
 
-### Fitting a random intercept only mixed effects model for mean-variance
-# We will include the group type as a fixed moderator with random intercepts for both study and arm 
+# Random intercepts only
 
-MultiLevelModel_ri__log_mean_mod_hypertrophy  <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
-                                                     random = list(~ 1 | study, ~ 1 | arm, ~ 1 | es),
-                                                     mods = ~ mean_log + group,
-                                                     method="REML", test="t",
-                                                     # control=list(optimizer="optim", optmethod="Nelder-Mead")
+MultiLevelModel_ri_only_log_mean_mod_hypertrophy <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
+                                                        random = list(~ 1 | study, ~ 1 | arm, ~ 1 | es),
+                                                        mods = ~ mean_log + group,
+                                                        method="REML", test="t",
+                                                        # control=list(optimizer="optim", optmethod="Nelder-Mead")
 )
 
-save(MultiLevelModel_ri__log_mean_mod_hypertrophy , file = "models/MultiLevelModel_ri__log_mean_mod_hypertrophy ")
+save(MultiLevelModel_ri_only_log_mean_mod_hypertrophy, file = "models/MultiLevelModel_ri_only_log_mean_mod_hypertrophy")
 
 ### Calculate I^2 
-I2_ri__log_mean_mod_hypertrophy <- i2_ml(MultiLevelModel_ri__log_mean_mod_hypertrophy)
+I2_ri_only_log_mean_mod_hypertrophy <- i2_ml(MultiLevelModel_ri_only_log_mean_mod_hypertrophy)
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy  <- robust(MultiLevelModel_ri__log_mean_mod_hypertrophy , Data_long_hypertrophy$study)
+RobuEstMultiLevelModel_ri_only_log_mean_mod_hypertrophy <- robust(MultiLevelModel_ri_only_log_mean_mod_hypertrophy, Data_long_hypertrophy$study)
 
-save(RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy , file = "models/RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy ")
+save(RobuEstMultiLevelModel_ri_only_log_mean_mod_hypertrophy, file = "models/RobuEstMultiLevelModel_ri_only_log_mean_mod_hypertrophy")
 
-### Fitting a random slope mixed effects model for mean-variance
-# We will include the group type as a fixed moderator with random slopes for study 
+# Random intercepts plus slope for group in study
 
-MultiLevelModel_rs_study__log_mean_mod_hypertrophy  <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
-                                                           random = list(~ group | study, ~ 1 | arm), struct = "GEN",
-                                                           mods = ~ mean_log + group,
-                                                           method="REML", test="t",
-                                                           # control=list(optimizer="optim", optmethod="Nelder-Mead")
+MultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
+                                                                     random = list(~ group | study, ~ 1 | arm, ~ 1 | es), struct = "GEN",
+                                                                     mods = ~ mean_log + group,
+                                                                     method="REML", test="t",
+                                                                     # control=list(optimizer="optim", optmethod="Nelder-Mead")
 )
 
-save(MultiLevelModel_rs_study__log_mean_mod_hypertrophy , file = "models/MultiLevelModel_rs_study__log_mean_mod_hypertrophy ")
+save(MultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy, file = "models/MultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy")
 
 ### Calculate I^2 
-I2_rs_study__log_mean_mod_hypertrophy <- i2_ml(MultiLevelModel_rs_study__log_mean_mod_hypertrophy)
+I2_rs_study__log_mean_mod_hypertrophy <- i2_ml(MultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy)
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy  <- robust(MultiLevelModel_rs_study__log_mean_mod_hypertrophy , Data_long_hypertrophy$study)
+RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy <- robust(MultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy, Data_long_hypertrophy$study)
 
-save(RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy , file = "models/RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy ")
+save(RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy, file = "models/RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy")
 
-### Fitting a random slope mixed effects model for mean-variance
-# We will include the group type as a fixed moderator with random slopes for both study and arm 
+# Random intercepts plus slope for log mean in study
 
-MultiLevelModel_rs_both__log_mean_mod_hypertrophy  <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
-                                                          random = list(~ group | study, ~ group | arm), struct = "GEN",
-                                                          mods = ~ mean_log + group,
-                                                          method="REML", test="t",
-                                                          # control=list(optimizer="optim", optmethod="Nelder-Mead")
+MultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
+                                                                    random = list(~ mean_log | study, ~ 1 | arm, ~ 1 | es), struct = "GEN",
+                                                                    mods = ~ mean_log + group,
+                                                                    method="REML", test="t",
+                                                                    # control=list(optimizer="optim", optmethod="Nelder-Mead")
 )
 
-save(MultiLevelModel_rs_both__log_mean_mod_hypertrophy , file = "models/MultiLevelModel_rs_both__log_mean_mod_hypertrophy ")
+save(MultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy, file = "models/MultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy")
 
 ### Calculate I^2 
-I2_rs_both__log_mean_mod_hypertrophy <- i2_ml(MultiLevelModel_rs_both__log_mean_mod_hypertrophy)
+I2_rs_both__log_mean_mod_hypertrophy <- i2_ml(MultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy)
 
 ### Calculate robust estimate from multi-level model
-RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy  <- robust(MultiLevelModel_rs_both__log_mean_mod_hypertrophy , Data_long_hypertrophy$study)
+RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy <- robust(MultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy, Data_long_hypertrophy$study)
 
-save(RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy , file = "models/RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy ")
+save(RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy, file = "models/RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy")
 
-### Compare all three models
-group_ri_rs_study <- data.frame(anova(RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy ,
-                                      RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy ))
+# Random intercepts plus slope for log mean in study and arm
 
-group_rs_study_rs_both <- data.frame(anova(RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy ,
-                                           RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy )) 
+MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
+                                                                        random = list(~ mean_log | study, ~ mean_log | arm, ~ 1 | es), struct = "GEN",
+                                                                        mods = ~ mean_log + group,
+                                                                        method="REML", test="t",
+                                                                        # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
 
-compare_group_models_hypertrophy <- rbind(group_rs_study_rs_both, group_ri_rs_study[2,])
+save(MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy, file = "models/MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy")
 
-rownames(compare_group_models_hypertrophy) <- c("+ Random Slope (Study & Arm)", "+ Random Slope (Study)", "Random Intercept")
+### Calculate I^2 
+I2_rs_both__log_mean_mod_hypertrophy <- i2_ml(MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy)
 
-knitr::kable(
-  compare_group_models_hypertrophy,
-  caption = "Comparison of meta-regression models (hypertrophy outcomes) of variance~mean with group (RT vs CON) as a predictor (each compared to the next most complex model)",
-) %>%
-  footnote(general = c("df = degrees of freedom; ", 
-                       "AIC = Akaike Information Criterion; ", 
-                       "BIC = Bayesian Information Criterion; ",
-                       "AICc = Second-order Akaike Information Criterion; ",
-                       "logLik = Log-Likelihood; ",
-                       "LRT = Log-Likelihood Ratio Test; ",
-                       "QE = Test statistic for heterogeneity of full model")
-  ) %>%
-  row_spec(0, bold = TRUE) %>%
-  kable_classic(full_width = FALSE) %>%
-  kable_styling() %>%
-  save_kable("models/compare_group_models_hypertrophy.html")
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy <- robust(MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy, Data_long_hypertrophy$study)
 
-webshot("models/compare_group_models_hypertrophy.html", "models/compare_group_models_hypertrophy.pdf")
+save(RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy, file = "models/RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy")
+
+# Random intercepts plus slope for log mean and group in study
+
+MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
+                                                                          random = list(~ mean_log + group | study, ~ 1 | arm, ~ 1 | es), struct = "GEN",
+                                                                          mods = ~ mean_log + group,
+                                                                          method="REML", test="t",
+                                                                          # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy, file = "models/MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy")
+
+### Calculate I^2 
+I2_rs_both__log_mean_mod_hypertrophy <- i2_ml(MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy)
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy <- robust(MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy, Data_long_hypertrophy$study)
+
+save(RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy, file = "models/RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy")
+
+# Random intercepts plus slope for log mean and group in study and arm
+
+MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy <- rma.mv(SD_log, V=SD_log_vi, data=Data_long_hypertrophy,
+                                                                              random = list(~ mean_log + group | study, ~ mean_log | arm, ~ 1 | es), struct = "GEN",
+                                                                              mods = ~ mean_log + group,
+                                                                              method="REML", test="t",
+                                                                              # control=list(optimizer="optim", optmethod="Nelder-Mead")
+)
+
+save(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy, file = "models/MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy")
+
+### Calculate I^2 
+I2_rs_both__log_mean_mod_hypertrophy <- i2_ml(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy)
+
+### Calculate robust estimate from multi-level model
+RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy <- robust(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy, Data_long_hypertrophy$study)
+
+save(RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy, file = "models/RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy")
+
+### Compare all models against one another using Bayes Factors i.e., under which model is the data more probable?
+
+BF_mod_hypertrophy_models <- bayesfactor_models(RobuEstMultiLevelModel_ri_only_log_mean_mod_hypertrophy,
+                                             RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy,
+                                             RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy,
+                                             RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy,
+                                             RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy,
+                                             RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy)
+
+save(BF_mod_hypertrophy_models, file = "models/BF_mod_hypertrophy_models")
+
+BF_2log <- function(x) (2*x)
+
+BF_mod_hypertrophy_models <- as.data.frame(as.matrix(BF_mod_hypertrophy_models))  %>%
+  mutate_at(1:6, BF_2log) %>%
+  rownames_to_column("Denominator") %>%
+  rename("Random Intercepts Only" = "RobuEstMultiLevelModel_ri_only_log_mean_mod_hypertrophy",
+         "Random Intercepts + Random Slope (group) at Study Level" = "RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy",
+         "Random Intercepts + Random Slope (log Mean) at Study Level" = "RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy",
+         "Random Intercepts + Random Slope (log Mean) at Study and Arm Level" = "RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy",
+         "Random Intercepts + Random Slope (group + log Mean) at Study Level" = "RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy",
+         "Random Intercepts + Random Slope (group + log Mean) at Study and Arm Level" = "RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy") %>%
+  pivot_longer(2:7, names_to = "Numerator", values_to = "logBF")
+
+BF_mod_hypertrophy_models$Denominator <-  recode(BF_mod_hypertrophy_models$Denominator, 
+                                              "RobuEstMultiLevelModel_ri_only_log_mean_mod_hypertrophy" = "Random Intercepts Only",
+                                              "RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy" = "Random Intercepts + Random Slope (group) at Study Level",
+                                              "RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy" = "Random Intercepts + Random Slope (log Mean) at Study Level",
+                                              "RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy" = "Random Intercepts + Random Slope (log Mean) at Study and Arm Level",
+                                              "RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy" = "Random Intercepts + Random Slope (group + log Mean) at Study Level",
+                                              "RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy" = "Random Intercepts + Random Slope (group + log Mean) at Study and Arm Level")
+
+model_mean_mod_hypertrophy_model_comparisons <- BF_mod_hypertrophy_models %>% 
+  mutate(Denominator = factor(Denominator, levels= c( 
+    "Random Intercepts Only",
+    "Random Intercepts + Random Slope (group) at Study Level",
+    "Random Intercepts + Random Slope (log Mean) at Study Level",
+    "Random Intercepts + Random Slope (log Mean) at Study and Arm Level",
+    "Random Intercepts + Random Slope (group + log Mean) at Study Level",
+    "Random Intercepts + Random Slope (group + log Mean) at Study and Arm Level")),
+    Numerator = factor(Numerator, levels= c( 
+      "Random Intercepts Only",
+      "Random Intercepts + Random Slope (group) at Study Level",
+      "Random Intercepts + Random Slope (log Mean) at Study Level",
+      "Random Intercepts + Random Slope (log Mean) at Study and Arm Level",
+      "Random Intercepts + Random Slope (group + log Mean) at Study Level",
+      "Random Intercepts + Random Slope (group + log Mean) at Study and Arm Level"))) %>%
+  ggplot(aes(x=Numerator, y=Denominator, fill=logBF)) +
+  geom_tile() +
+  geom_raster() +
+  geom_text(aes(label = round(logBF,2))) +
+  scale_fill_gradient2(low = "#E69F00", mid="white", high = "#56B4E9") +
+  scale_y_discrete(limits=rev, labels = function(x) str_wrap(x, width = 25)) +
+  scale_x_discrete(position = "top", labels = function(x) str_wrap(x, width = 25)) +
+  labs(title = "Testing model specification for log standard deviation models of change scores (hypertrophy) using 2×log(BF)",
+       fill = "2×log(BF)",
+       caption = "Kass and Raferty (1995) scale:
+       -Inf to 0 = Negative; 0 to 2 = Weak; 2 to 6 = Positive; 6 to 10 = Strong; 10 to +Inf = Very Strong") +
+  theme_classic() +
+  theme(panel.border = element_rect(colour = "black", fill=NA, size=2.5))
+
+save(model_mean_mod_hypertrophy_model_comparisons, file = "plots/model_mean_mod_hypertrophy_model_comparisons")
+
+model_mean_mod_hypertrophy_model_comparisons
+
+ggsave("plots/mean_mod_hypertrophy_model_comparisons.tiff", width = 15, height = 7.5, device = "tiff", dpi = 300)
 
 ### Meta-analytic scatter plot
 
 # get the predicted log values
-Data_long_hypertrophy_log <- cbind(Data_long_hypertrophy, predict(RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy )) %>%
+Data_long_hypertrophy_log <- cbind(Data_long_hypertrophy, predict(RobuEstMultiLevelModel_ri_only_log_mean_mod_hypertrophy )) %>%
   mutate(wi = 1/sqrt(SD_log_vi),
-         size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi))) 
+         size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi)))
 
 model_m_sd_hypertrophy_log <- ggplot(Data_long_hypertrophy_log, aes(x=mean_log, y=SD_log)) +
   geom_abline(intercept = 0, slope = 1, linetype = 2, alpha = 0.1) +
@@ -1587,8 +1891,8 @@ model_m_sd_hypertrophy_log <- ggplot(Data_long_hypertrophy_log, aes(x=mean_log, 
   ggtitle("Hypertrophy Outcomes") +
   guides(size = "none", fill = "none")
 
-model_mean_variance_delta_plots <- (model_m_sd_strength_log | model_m_sd_hypertrophy_log) + 
-  plot_layout(guides = 'collect') + plot_annotation(tag_levels = "A") 
+model_mean_variance_delta_plots <- (model_m_sd_strength_log | model_m_sd_hypertrophy_log) +
+  plot_layout(guides = 'collect') + plot_annotation(tag_levels = "A")
 
 save(model_mean_variance_delta_plots, file = "plots/model_mean_variance_delta_plots")
 
@@ -1598,33 +1902,63 @@ ggsave("plots/model_mean_variance_delta_plots.tiff", width = 10, height = 5, dev
 
 
 ### Compare estimates from log CVR and each meta-regression model for strength and hypertrophy
-model_estimates <- data.frame(Outcome = "",
-                 Model = c("lnCVR", "MLMR: Random Intercept", "MLMR: + Random Slope (Study)", "MLMR: + Random Slope (Study & Arm)",
-                           "lnCVR", "MLMR: Random Intercept", "MLMR: + Random Slope (Study)", "MLMR: + Random Slope (Study & Arm)"),
-                 Estimate = c(RobuEstMultiLevelModel_logCVR_strength$b, 
-                              RobuEstMultiLevelModel_ri__log_mean_mod_strength$b[3], 
-                              RobuEstMultiLevelModel_rs_study__log_mean_mod_strength$b[3], 
-                              RobuEstMultiLevelModel_rs_both__log_mean_mod_strength$b[3],
-                              RobuEstMultiLevelModel_logCVR_hypertrophy$b, 
-                              RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy$b[3], 
-                              RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy$b[3],
-                              RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy$b[3]),
-                 `Lower 95% CI` = c(RobuEstMultiLevelModel_logCVR_strength$ci.lb, 
-                           RobuEstMultiLevelModel_ri__log_mean_mod_strength$ci.lb[3], 
-                           RobuEstMultiLevelModel_rs_study__log_mean_mod_strength$ci.lb[3], 
-                           RobuEstMultiLevelModel_rs_both__log_mean_mod_strength$ci.lb[3],
-                           RobuEstMultiLevelModel_logCVR_hypertrophy$ci.lb, 
-                           RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy$ci.lb[3], 
-                           RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy$ci.lb[3],
-                           RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy$ci.lb[3]),
-                 `Upper 95% CI` = c(RobuEstMultiLevelModel_logCVR_strength$ci.ub, 
-                           RobuEstMultiLevelModel_ri__log_mean_mod_strength$ci.ub[3], 
-                           RobuEstMultiLevelModel_rs_study__log_mean_mod_strength$ci.ub[3], 
-                           RobuEstMultiLevelModel_rs_both__log_mean_mod_strength$ci.ub[3],
-                           RobuEstMultiLevelModel_logCVR_hypertrophy$ci.ub, 
-                           RobuEstMultiLevelModel_ri__log_mean_mod_hypertrophy$ci.ub[3], 
-                           RobuEstMultiLevelModel_rs_study__log_mean_mod_hypertrophy$ci.ub[3],
-                           RobuEstMultiLevelModel_rs_both__log_mean_mod_hypertrophy$ci.ub[3])) %>%
+model_estimates <- data.frame(Outcome = rep(""),
+                 Model = c("lnCVR", 
+                           "MLMR: Random Intercepts Only",
+                           "MLMR: Random Intercepts + Random Slope (group) at Study Level",
+                           "MLMR: Random Intercepts + Random Slope (log Mean) at Study Level",
+                           "MLMR: Random Intercepts + Random Slope (log Mean) at Study and Arm Level",
+                           "MLMR: Random Intercepts + Random Slope (group + log Mean) at Study Level",
+                           "MLMR: Random Intercepts + Random Slope (group + log Mean) at Study and Arm Level",
+                           "lnCVR", 
+                           "MLMR: Random Intercepts Only",
+                           "MLMR: Random Intercepts + Random Slope (group) at Study Level",
+                           "MLMR: Random Intercepts + Random Slope (log Mean) at Study Level",
+                           "MLMR: Random Intercepts + Random Slope (log Mean) at Study and Arm Level",
+                           "MLMR: Random Intercepts + Random Slope (group + log Mean) at Study Level",
+                           "MLMR: Random Intercepts + Random Slope (group + log Mean) at Study and Arm Level"),
+                 Estimate = c(RobuEstMultiLevelModel_logCVR_strength$b,
+                              RobuEstMultiLevelModel_ri_only_log_mean_mod_strength$b[3], 
+                              RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_strength$b[3], 
+                              RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_strength$b[3],
+                              RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength$b[3], 
+                              RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength$b[3], 
+                              RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength$b[3],
+                              RobuEstMultiLevelModel_logCVR_hypertrophy$b,
+                              RobuEstMultiLevelModel_ri_only_log_mean_mod_hypertrophy$b[3], 
+                               RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy$b[3], 
+                               RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy$b[3],
+                               RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy$b[3], 
+                               RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy$b[3], 
+                               RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy$b[3]),
+                 `Lower 95% CI` = c(RobuEstMultiLevelModel_logCVR_strength$ci.lb,
+                                    RobuEstMultiLevelModel_ri_only_log_mean_mod_strength$ci.lb[3], 
+                                    RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_strength$ci.lb[3], 
+                                    RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_strength$ci.lb[3],
+                                    RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength$ci.lb[3], 
+                                    RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength$ci.lb[3], 
+                                    RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength$ci.lb[3],
+                                     RobuEstMultiLevelModel_logCVR_hypertrophy$ci.lb,
+                                     RobuEstMultiLevelModel_ri_only_log_mean_mod_hypertrophy$ci.lb[3], 
+                                     RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy$ci.lb[3], 
+                                     RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy$ci.lb[3],
+                                     RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy$ci.lb[3], 
+                                     RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy$ci.lb[3], 
+                                     RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy$ci.lb[3]),
+                 `Upper 95% CI` = c(RobuEstMultiLevelModel_logCVR_strength$ci.ub,
+                                    RobuEstMultiLevelModel_ri_only_log_mean_mod_strength$ci.ub[3], 
+                                    RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_strength$ci.ub[3], 
+                                    RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_strength$ci.ub[3],
+                                    RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength$ci.ub[3], 
+                                    RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength$ci.ub[3], 
+                                    RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength$ci.ub[3],
+                                    RobuEstMultiLevelModel_logCVR_hypertrophy$ci.ub,
+                                    RobuEstMultiLevelModel_ri_only_log_mean_mod_hypertrophy$ci.ub[3], 
+                                    RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_hypertrophy$ci.ub[3], 
+                                    RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_hypertrophy$ci.ub[3],
+                                    RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_hypertrophy$ci.ub[3], 
+                                    RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy$ci.ub[3], 
+                                    RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_hypertrophy$ci.ub[3])) %>%
   mutate(across(where(is.numeric), round, 2)) 
 
 save(model_estimates, file = "models/group_model_estimates")
@@ -1634,7 +1968,7 @@ knitr::kable(
   caption = "Comparison of estimates from model using lnCVR and multilevel meta-regression models of variance~mean with group (RT vs CON) as a predictor",
 ) %>%
   row_spec(0, bold = TRUE) %>%
-  pack_rows(index = c("Strength" = 4, "Hypertrophy" = 4)) %>%
+  pack_rows(index = c("Strength" = 7, "Hypertrophy" = 7)) %>%
   kable_classic(full_width = FALSE) %>%
   kable_styling() %>%
   save_kable("models/compare_group_model_estimates.html")
