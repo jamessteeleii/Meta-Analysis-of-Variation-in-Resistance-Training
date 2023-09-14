@@ -971,9 +971,6 @@ MultiLevelModel_ri_group_slope_study_log_mean_variance <- rma.mv(SD_log, V=SD_lo
 
 save(MultiLevelModel_ri_group_slope_study_log_mean_variance, file = "models/MultiLevelModel_ri_group_slope_study_log_mean_variance")
 
-### Calculate I^2 
-I2_rs_study__log_mean_variance <- i2_ml(MultiLevelModel_ri_group_slope_study_log_mean_variance)
-
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_ri_group_slope_study_log_mean_variance <- robust(MultiLevelModel_ri_group_slope_study_log_mean_variance, Data_long_pre$study)
 
@@ -989,9 +986,6 @@ MultiLevelModel_ri_group_slope_study_arm_log_mean_variance <- rma.mv(SD_log, V=S
                                             )
 
 save(MultiLevelModel_ri_group_slope_study_arm_log_mean_variance, file = "models/MultiLevelModel_ri_group_slope_study_arm_log_mean_variance")
-
-### Calculate I^2 
-I2_rs_both__log_mean_variance <- i2_ml(MultiLevelModel_ri_group_slope_study_arm_log_mean_variance)
 
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_ri_group_slope_study_arm_log_mean_variance <- robust(MultiLevelModel_ri_group_slope_study_arm_log_mean_variance, Data_long_pre$study)
@@ -1009,9 +1003,6 @@ MultiLevelModel_ri_mean_slope_study_log_mean_variance <- rma.mv(SD_log, V=SD_log
 
 save(MultiLevelModel_ri_mean_slope_study_log_mean_variance, file = "models/MultiLevelModel_ri_mean_slope_study_log_mean_variance")
 
-### Calculate I^2 
-I2_rs_both__log_mean_variance <- i2_ml(MultiLevelModel_ri_mean_slope_study_log_mean_variance)
-
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_variance <- robust(MultiLevelModel_ri_mean_slope_study_log_mean_variance, Data_long_pre$study)
 
@@ -1027,9 +1018,6 @@ MultiLevelModel_ri_mean_slope_study_arm_log_mean_variance <- rma.mv(SD_log, V=SD
 )
 
 save(MultiLevelModel_ri_mean_slope_study_arm_log_mean_variance, file = "models/MultiLevelModel_ri_mean_slope_study_arm_log_mean_variance")
-
-### Calculate I^2 
-I2_rs_both__log_mean_variance <- i2_ml(MultiLevelModel_ri_mean_slope_study_arm_log_mean_variance)
 
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_variance <- robust(MultiLevelModel_ri_mean_slope_study_arm_log_mean_variance, Data_long_pre$study)
@@ -1047,9 +1035,6 @@ MultiLevelModel_ri_mean_group_slope_study_log_mean_variance <- rma.mv(SD_log, V=
 
 save(MultiLevelModel_ri_mean_group_slope_study_log_mean_variance, file = "models/MultiLevelModel_ri_mean_group_slope_study_log_mean_variance")
 
-### Calculate I^2 
-I2_rs_both__log_mean_variance <- i2_ml(MultiLevelModel_ri_mean_group_slope_study_log_mean_variance)
-
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_variance <- robust(MultiLevelModel_ri_mean_group_slope_study_log_mean_variance, Data_long_pre$study)
 
@@ -1065,9 +1050,6 @@ MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance <- rma.mv(SD_log
 )
 
 save(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance, file = "models/MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance")
-
-### Calculate I^2 
-I2_rs_both__log_mean_variance <- i2_ml(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance)
 
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance <- robust(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_variance, Data_long_pre$study)
@@ -1360,9 +1342,12 @@ forest_logCVR_strength <- Data_logCVR_strength %>%
   geom_text(data = PI_logCVR_strength,
             aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
                 x = 60, y = 90), hjust = "centre", size = 3) +
-  geom_text(data = I2_logCVR_strength_lab,
-            aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
-                x = 60, y = 70), hjust = "centre", size = 3) +
+  geom_richtext(data = I2_logCVR_strength_lab,
+                aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
+                    x = 60, y = 70), size = 3,
+                fill = NA, label.color = NA, # remove background and outline
+                label.padding = grid::unit(rep(0, 4), "pt") # remove padding
+  ) +
   geom_segment(data = PI_logCVR_strength, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub),
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
   geom_polygon(data=diamond_logCVR_strength, aes(x=x,y=y)) +
@@ -1428,9 +1413,12 @@ forest_logCVR_hypertrophy <- Data_logCVR_hypertrophy %>%
   geom_text(data = PI_logCVR_hypertrophy,
             aes(label = glue::glue("[95% Prediction Interval: {round(pi.lb,2)} to {round(pi.ub,2)}]"),
                 x = 120, y = 90), hjust = "centre", size = 3) +
-  geom_text(data = I2_logCVR_hypertrophy_lab,
-            aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
-                x = 120, y = 70), hjust = "centre", size = 3) +
+  geom_richtext(data = I2_logCVR_hypertrophy_lab,
+                aes(label = glue::glue("*I*<sup>2</sup> [Study = {round(study,1)}%; Arm = {round(arm,1)}%; Effect = {round(es,1)}%]"),
+                    x = 120, y = 70), size = 3,
+                fill = NA, label.color = NA, # remove background and outline
+                label.padding = grid::unit(rep(0, 4), "pt") # remove padding
+  ) +
   geom_segment(data = PI_logCVR_hypertrophy, aes(y=-15, yend=-15, x=pi.lb, xend=pi.ub),
                arrow = arrow(length=unit(0.30,"cm"), angle = 90, ends="both", type = "open")) +
   geom_polygon(data=diamond_logCVR_hypertrophy, aes(x=x,y=y)) +
@@ -1484,9 +1472,6 @@ MultiLevelModel_ri_only_log_mean_mod_strength <- rma.mv(SD_log, V=SD_log_vi, dat
 
 save(MultiLevelModel_ri_only_log_mean_mod_strength, file = "models/MultiLevelModel_ri_only_log_mean_mod_strength")
 
-### Calculate I^2 
-I2_ri_only_log_mean_mod_strength <- i2_ml(MultiLevelModel_ri_only_log_mean_mod_strength)
-
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_ri_only_log_mean_mod_strength <- robust(MultiLevelModel_ri_only_log_mean_mod_strength, Data_long_strength$study)
 
@@ -1502,9 +1487,6 @@ MultiLevelModel_ri_group_slope_study_log_mean_mod_strength <- rma.mv(SD_log, V=S
 )
 
 save(MultiLevelModel_ri_group_slope_study_log_mean_mod_strength, file = "models/MultiLevelModel_ri_group_slope_study_log_mean_mod_strength")
-
-### Calculate I^2 
-I2_rs_study__log_mean_mod_strength <- i2_ml(MultiLevelModel_ri_group_slope_study_log_mean_mod_strength)
 
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_ri_group_slope_study_log_mean_mod_strength <- robust(MultiLevelModel_ri_group_slope_study_log_mean_mod_strength, Data_long_strength$study)
@@ -1522,9 +1504,6 @@ MultiLevelModel_ri_mean_slope_study_log_mean_mod_strength <- rma.mv(SD_log, V=SD
 
 save(MultiLevelModel_ri_mean_slope_study_log_mean_mod_strength, file = "models/MultiLevelModel_ri_mean_slope_study_log_mean_mod_strength")
 
-### Calculate I^2 
-I2_rs_both__log_mean_mod_strength <- i2_ml(MultiLevelModel_ri_mean_slope_study_log_mean_mod_strength)
-
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_ri_mean_slope_study_log_mean_mod_strength <- robust(MultiLevelModel_ri_mean_slope_study_log_mean_mod_strength, Data_long_strength$study)
 
@@ -1540,9 +1519,6 @@ MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength <- rma.mv(SD_log, 
 )
 
 save(MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength, file = "models/MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength")
-
-### Calculate I^2 
-I2_rs_both__log_mean_mod_strength <- i2_ml(MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength)
 
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength <- robust(MultiLevelModel_ri_mean_slope_study_arm_log_mean_mod_strength, Data_long_strength$study)
@@ -1560,9 +1536,6 @@ MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength <- rma.mv(SD_log
 
 save(MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength, file = "models/MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength")
 
-### Calculate I^2 
-I2_rs_both__log_mean_mod_strength <- i2_ml(MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength)
-
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength <- robust(MultiLevelModel_ri_mean_group_slope_study_log_mean_mod_strength, Data_long_strength$study)
 
@@ -1578,9 +1551,6 @@ MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength <- rma.mv(SD
 )
 
 save(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength, file = "models/MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength")
-
-### Calculate I^2 
-I2_rs_both__log_mean_mod_strength <- i2_ml(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength)
 
 ### Calculate robust estimate from multi-level model
 RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength <- robust(MultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength, Data_long_strength$study)
