@@ -1128,16 +1128,15 @@ model_mean_variance_pre_model_comparisons
 
 ggsave("plots/mean_variance_pre_model_comparisons.tiff", width = 15, height = 7.5, device = "tiff", dpi = 300)
 
-
 ### Meta-analytic scatter plot
 
 # get the predicted log values
 Data_long_pre <- Data_long_pre %>%
   filter(!is.na(SD_log))
 
-Data_long_pre <- cbind(Data_long_pre, pred = predict(RobuEstMultiLevelModel_ri_only_log_mean_variance)$pred,
-                      ci.lb =  predict(RobuEstMultiLevelModel_ri_only_log_mean_variance)$ci.lb,
-                      ci.ub =  predict(RobuEstMultiLevelModel_ri_only_log_mean_variance)$ci.ub) %>%
+Data_long_pre <- cbind(Data_long_pre, pred = predict(RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_variance)$pred,
+                      ci.lb =  predict(RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_variance)$ci.lb,
+                      ci.ub =  predict(RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_variance)$ci.ub) %>%
   mutate(wi = 1/sqrt(SD_log_vi),
          size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi))) 
 
@@ -1627,7 +1626,7 @@ ggsave("plots/mean_mod_strength_model_comparisons.tiff", width = 15, height = 7.
 ### Meta-analytic scatter plot
 
 # get the predicted log values
-Data_long_strength_log <- cbind(Data_long_strength, predict(RobuEstMultiLevelModel_ri_only_log_mean_mod_strength )) %>%
+Data_long_strength_log <- cbind(Data_long_strength, predict(RobuEstMultiLevelModel_ri_mean_group_slope_study_arm_log_mean_mod_strength )) %>%
     mutate(wi = 1/sqrt(SD_log_vi),
            size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi)))
 
@@ -1843,7 +1842,7 @@ ggsave("plots/mean_mod_hypertrophy_model_comparisons.tiff", width = 15, height =
 ### Meta-analytic scatter plot
 
 # get the predicted log values
-Data_long_hypertrophy_log <- cbind(Data_long_hypertrophy, predict(RobuEstMultiLevelModel_ri_only_log_mean_mod_hypertrophy )) %>%
+Data_long_hypertrophy_log <- cbind(Data_long_hypertrophy, predict(RobuEstMultiLevelModel_ri_mean_group_slope_study_log_mean_mod_hypertrophy )) %>%
   mutate(wi = 1/sqrt(SD_log_vi),
          size = 0.5 + 3.0 * (wi - min(wi))/(max(wi) - min(wi)))
 
