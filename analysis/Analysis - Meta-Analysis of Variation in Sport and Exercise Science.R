@@ -37,7 +37,7 @@ trends <- rbind(SES_meta_trend, RT_meta_trend) %>%
 
 trends_plot <- trends %>%
   ggplot(aes(x = year, y = (query_hits / all_hits)*100, linetype = `Search string`)) +
-  geom_line(size = 1) +
+  geom_line(linewidth = 1) +
   labs(x = "Year", y = "Proportion of Published Articles (%)",
        title = "Articles in Europe Pub Med Central Database") +
   theme_classic() +
@@ -45,6 +45,9 @@ trends_plot <- trends %>%
         legend.text = element_text(size = 6))
 
 save(trends_plot, file = "plots/trends_plot")
+
+ggsave("plots/trends_plot.tiff", width = 6, height = 4, device = "tiff", dpi = 300)
+
 
 ##### Read csv as data frame into environment - Note: change source address
 Data <- read.csv(here::here("data","Polito et al. RT Extracted Data.csv"), na.strings=c(""," ","NA"))
